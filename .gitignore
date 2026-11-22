@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.pyc
+
+# Datos personales que crea el panel al usarlo (no se suben)
+registros/
+referencias/
+secuencias/
+panel_config.json
+perfiles.json
+buscar_corto.json
+Guía rápida DPS-150.html
