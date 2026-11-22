@@ -1,0 +1,298 @@
+<title>Guía rápida DPS-150</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap">
+<style>
+/* Layout: banco de trabajo — índice de pestañas fijo arriba, una tarjeta por pestaña del panel, valores en mono como en la pantalla de la fuente */
+:root {
+  --bg: #f4f5f7; --panel: #ffffff; --fg: #1b1e23; --muted: #5d6470; --line: #dde0e6;
+  --amp: #d9730d; --volt: #1f62c4; --ok: #17803a; --warn: #a86400; --bad: #c0352b; --chip: #eceef2;
+  --f-display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", Consolas, ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #17191d; --panel: #202328; --fg: #eceef1; --muted: #9aa1ab; --line: #33373e;
+  --amp: #ff9d2e; --volt: #6aa7ff; --ok: #4cc777; --warn: #f0b441; --bad: #ff6b61; --chip: #2a2d33; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #17191d; --panel: #202328; --fg: #eceef1; --muted: #9aa1ab; --line: #33373e;
+  --amp: #ff9d2e; --volt: #6aa7ff; --ok: #4cc777; --warn: #f0b441; --bad: #ff6b61; --chip: #2a2d33; color-scheme: dark }
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--fg); font: 15px/1.6 var(--f-body); margin: 0 }
+.envoltura { max-width: 980px; margin: 0 auto; padding-block: 28px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)) }
+header h1 { font: 700 clamp(28px, 5vw, 40px)/1.1 var(--f-display); margin: 0 0 6px; text-wrap: balance }
+header p { color: var(--muted); margin: 0; max-width: 64ch }
+.lectura { display: flex; gap: 18px; flex-wrap: wrap; margin: 18px 0 6px; font: 600 26px/1 var(--f-mono) }
+.lectura .v { color: var(--volt) } .lectura .a { color: var(--amp) } .lectura .m { color: var(--ok); font-size: 15px; align-self: center;
+  border: 1.5px solid currentColor; border-radius: 6px; padding: 3px 8px }
+nav { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding: 10px 0; margin: 14px 0 8px;
+  display: flex; gap: 6px; flex-wrap: wrap; border-bottom: 1px solid var(--line) }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg) }
+nav a { font: 500 13px/1 var(--f-body); color: var(--fg); text-decoration: none; background: var(--chip); padding: 7px 10px; border-radius: 999px }
+nav a:hover, nav a:focus-visible { background: var(--amp); color: var(--bg); outline: none }
+h2 { font: 700 22px/1.2 var(--f-display); margin: 0 0 2px; text-wrap: balance }
+h2 .pest { font: 500 12px/1 var(--f-mono); color: var(--muted); letter-spacing: .04em; margin-left: 8px; vertical-align: middle }
+h3 { font: 600 15px/1.3 var(--f-body); margin: 14px 0 4px }
+section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; margin-top: 14px; scroll-margin-top: 70px }
+section > p:first-of-type { margin-top: 4px }
+p, li { max-width: 72ch } ol, ul { padding-left: 20px; margin: 6px 0 } li { margin: 3px 0 }
+.para { color: var(--muted); margin: 0 0 8px }
+code, .k { font: 500 13px/1 var(--f-mono); background: var(--chip); padding: 2px 6px; border-radius: 4px; white-space: nowrap }
+.ojo { border-left: 3px solid var(--bad); padding: 6px 12px; margin: 10px 0; background: color-mix(in srgb, var(--bad) 8%, transparent) }
+.tip { border-left: 3px solid var(--volt); padding: 6px 12px; margin: 10px 0; background: color-mix(in srgb, var(--volt) 8%, transparent) }
+.tabla { overflow-x: auto; margin: 8px 0 }
+table { border-collapse: collapse; font-size: 14px; min-width: 420px }
+th, td { text-align: left; padding: 6px 12px 6px 0; border-bottom: 1px solid var(--line); vertical-align: top }
+th { font: 600 12px/1.2 var(--f-body); text-transform: uppercase; letter-spacing: .05em; color: var(--muted) }
+td.num { font-family: var(--f-mono); font-variant-numeric: tabular-nums; white-space: nowrap }
+.ok { color: var(--ok); font-weight: 600 } .warn { color: var(--warn); font-weight: 600 } .bad { color: var(--bad); font-weight: 600 }
+.dos { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px }
+.dos > * { min-width: 0 }
+footer { color: var(--muted); font-size: 13px; margin-top: 26px }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth } }
+</style>
+
+<div class="envoltura">
+<header>
+  <h1>Panel DPS-150 · Guía rápida</h1>
+  <p>Cómo usar cada pestaña del panel para la fuente FNIRSI DPS-150, pensado para el banco de reparación de celulares, laptops y placas.</p>
+  <div class="lectura" aria-label="Ejemplo de lectura"><span class="v">5.000 V</span><span class="a">0.4994 A</span><span class="m">CV</span></div>
+</header>
+
+<nav aria-label="Secciones">
+  <a href="#inicio">Empezar</a><a href="#cvcc">CV y CC</a><a href="#principal">Pantalla principal</a>
+  <a href="#flotantes">Flotantes</a><a href="#memorias">Memorias</a><a href="#corto">Buscar corto</a><a href="#inyeccion">Inyección</a>
+  <a href="#celular">Celular</a><a href="#laptop">Laptop</a><a href="#probador">Probador</a><a href="#leds">LEDs</a>
+  <a href="#secuencia">Secuencia</a><a href="#otras">Otras pestañas</a><a href="#atajos">Atajos</a><a href="#seguridad">Seguridad</a><a href="#problemas">Problemas</a>
+</nav>
+
+<section id="inicio">
+  <h2>Empezar</h2>
+  <ol>
+    <li>Abre <b>Panel DPS-150</b> desde el escritorio.</li>
+    <li><b>Con el panel ya abierto</b>, conecta el cable USB de la fuente (o desconéctalo y vuelve a conectarlo). El panel la encuentra solo y arriba aparece en verde <code>COMx: DPS-150 … FW V1.2</code>.</li>
+    <li>Conectar no cambia nada en la fuente: ni el voltaje ni la salida.</li>
+  </ol>
+  <div class="tip">La fuente se suelta del USB unos 4 segundos después de enchufarla si ningún programa la abre. Por eso hay que abrir el panel <b>antes</b> de conectar el cable.</div>
+  <div class="ojo">Solo un programa a la vez puede usar la fuente. Si el panel está abierto, ningún otro programa la ve, y al revés.</div>
+  <p><b>Modo claro / oscuro:</b> botón arriba a la derecha. El panel lo recuerda. <b>Simulada (sin equipo):</b> casilla para practicar sin la fuente.</p>
+</section>
+
+<section id="cvcc">
+  <h2>CV y CC en 30 segundos</h2>
+  <div class="dos">
+    <div><h3><span class="ok">CV</span> · voltaje constante</h3><p>La placa pide menos corriente que el límite. La fuente da exactamente el voltaje que pusiste. Es lo normal.</p></div>
+    <div><h3><span class="bad">CC</span> · corriente constante</h3><p>La placa pide más que el límite. La fuente fija la corriente en el límite y <b>baja el voltaje</b>. Con un límite bajo, eso protege la placa. Si aparece CC a voltaje bajo, sospecha de un corto.</p></div>
+  </div>
+</section>
+
+<section id="principal">
+  <h2>Pantalla principal</h2>
+  <ul>
+    <li><b>Salida medida:</b> voltaje (azul), corriente (naranja), potencia, modo CV/CC, voltaje de entrada, Ah y Wh acumulados. Si salta una protección, aparece en rojo.</li>
+    <li><b>Amperímetro:</b> arco que cambia de color (naranja normal, ámbar pasado el 75 %, rojo pasado el 90 %). Escala <code>Auto</code> o fija de 10 mA a 5 A; también cambia con la <b>rueda del ratón</b> sobre el medidor. <b>Pico</b> deja un triangulito rojo en la corriente máxima; clic en el medidor para borrarlo.</li>
+    <li><b>Control:</b> escribe el voltaje y el límite de corriente y pulsa <span class="k">Enter</span> o <b>Aplicar</b>. El botón grande enciende o apaga la salida.</li>
+  </ul>
+  <div class="tip">El voltaje máximo depende de tu adaptador de entrada: con uno de 12 V llegas a unos 11.8 V; con uno de 20 V, a unos 19.7 V. El panel lo muestra como <code>Máx.</code>.</div>
+</section>
+
+<section id="flotantes">
+  <h2>Lecturas flotantes <span class="pest">BOTÓN ARRIBA A LA DERECHA</span></h2>
+  <p class="para">Para trabajar mirando el microscopio en el monitor: el voltaje y la corriente quedan flotando encima de cualquier ventana, sin fondo.</p>
+  <ul>
+    <li>Pulsa <b>Lecturas flotantes</b>. Aparecen los números con un borde oscuro, siempre por encima de las demás ventanas.</li>
+    <li><b>Arrástralos</b> con el ratón a donde estorben menos. El panel recuerda el lugar.</li>
+    <li><b>Clic derecho</b> sobre los números: <b>Tamaño</b> (pequeño a enorme), <b>Mostrar</b> (voltaje, corriente, potencia/modo/salida), <b>Opacidad</b> y <b>Bloquear</b>.</li>
+    <li><b>Bloquear:</b> los clics pasan de largo y llegan al programa del microscopio. Para desbloquear, pulsa en el panel <b>Desbloquear flotantes</b>.</li>
+    <li>La tercera línea se pone en rojo si la fuente está en CC o si saltó una protección.</li>
+  </ul>
+</section>
+
+<section id="memorias">
+  <h2>Memorias <span class="pest">PESTAÑA MEMORIAS</span></h2>
+  <ul>
+    <li><b>M1–M6 de la fuente:</b> <b>Usar</b> aplica ese voltaje y corriente; <b>Guardar</b> lo escribe en la fuente y lo comprueba (<span class="ok">✓</span> confirmado, <span class="bad">⚠</span> no se confirmó); <b>← Actual</b> copia lo programado.</li>
+    <li><b>Perfiles en la PC:</b> todos los que quieras, con nombre, voltaje, corriente y OCP opcional. Doble clic para usar uno; <b>Enviar</b> lo pasa a una memoria M1–M6.</li>
+    <li>Atajo: <span class="k">Ctrl+1</span> … <span class="k">Ctrl+6</span> usa M1 … M6 desde cualquier pestaña.</li>
+  </ul>
+</section>
+
+<section id="corto">
+  <h2>Buscar corto <span class="pest">PESTAÑA BUSCAR CORTO</span></h2>
+  <p class="para">Mide la resistencia del riel en mΩ y ayuda a ubicar el corto.</p>
+  <ol>
+    <li><b>Cero de puntas:</b> une las puntas de la fuente, inicia <b>Medir resistencia</b> y pulsa <b>Cero de puntas</b>. La resistencia de los cables se resta desde entonces.</li>
+    <li>+ al riel, − a GND, placa sin otra alimentación. Con 0.5 V o menos los chips no conducen: lo que mides es el corto.</li>
+    <li><b>Fijar referencia</b> y luego quita componentes o mueve la punta: el <code>Δ</code> te dice si la resistencia baja (te acercas) o sube.</li>
+    <li><b>Tono:</b> más agudo cuanto menor es la resistencia, para buscar sin mirar. <b>Anotar</b> guarda la lectura con una nota.</li>
+  </ol>
+  <div class="tabla"><table>
+    <tr><th>Resistencia</th><th>Qué indica</th></tr>
+    <tr><td class="num">&lt; 0.5 Ω</td><td class="bad">Corto franco</td></tr>
+    <tr><td class="num">0.5 – 5 Ω</td><td class="warn">Probable corto</td></tr>
+    <tr><td class="num">5 – 50 Ω</td><td>Corto parcial o consumo normal de la placa</td></tr>
+    <tr><td class="num">&gt; 50 Ω</td><td class="ok">Sin corto a este voltaje</td></tr>
+  </table></div>
+  <p>El modo <b>Inyectar corriente para calentar</b> sigue disponible aquí, pero para buscar el componente caliente es mejor la pestaña <a href="#inyeccion">Inyección</a>.</p>
+</section>
+
+<section id="inyeccion">
+  <h2>Inyección escalonada <span class="pest">PESTAÑA INYECCIÓN</span></h2>
+  <p class="para">El método de los talleres para encontrar el componente en corto: corriente en escalones, voltaje que sube despacio y nunca pasa del voltaje del riel.</p>
+  <ol>
+    <li>Elige el <b>riel en corto</b>: VCC_MAIN de celular (4.0 V máx.), 5 V, 3.3 V, 1.8 V, CPU/RAM ~1 V o línea principal de laptop.</li>
+    <li>Escalones de fábrica: <code>0.2, 0.5, 1, 2</code> A, 30 s cada uno, potencia máxima 6 W.</li>
+    <li>+ al riel, − a GND, sin batería ni cargador. Pulsa <b>Iniciar inyección</b>.</li>
+    <li>Mira la placa con la cámara térmica, el dedo, alcohol isopropílico, colofonia o spray congelante. Si nada se calienta, pulsa <b>Siguiente escalón ▶</b> o espera.</li>
+    <li>Cuando lo veas brillar, pulsa <b>¡Lo encontré!</b>: la salida se apaga.</li>
+  </ol>
+  <h3>Latido: que el corto parpadee en la cámara</h3>
+  <ul>
+    <li>Cuando algo empiece a brillar, pulsa <b>♥ Latir en este escalón</b>. La corriente alterna entre el valor del escalón y un 5 % de él, sin apagar la salida.</li>
+    <li>El componente en corto se calienta y se enfría a ese ritmo y <b>parpadea</b>; el resto de la placa, que es más lento, se ve quieto. Así resalta aunque haya reflejos o aire caliente alrededor.</li>
+    <li><b>Periodo:</b> 1 a 4 s (2 s de fábrica). <b>Forma:</b> <i>Cuadrada</i> (medio periodo encendido y medio apagado, la más visible) o <i>Corazón</i> (dos golpes cortos y una pausa).</li>
+    <li>Dura hasta 120 s de fábrica. <b>■ Detener latido</b> termina la inyección. El límite de potencia sigue activo, y el calor promedio es la mitad que con corriente fija.</li>
+  </ul>
+  <div class="ojo">Si la corriente cae de golpe, el panel avisa y apaga: algo se abrió o se quemó. Revisa la zona antes de seguir.</div>
+</section>
+
+<section id="celular">
+  <h2>Celular <span class="pest">PESTAÑA CELULAR</span></h2>
+  <p class="para">Alimenta el celular por el conector de batería (cable de arranque DC), como una fuente de taller.</p>
+  <ol>
+    <li>Revisa la polaridad. De fábrica: <code>4.20 V</code>, límite <code>1.0 A</code>. Nunca pasa de 4.45 V y deja la protección de sobrevoltaje puesta.</li>
+    <li><b>1 · Encender y medir fuga:</b> mide 4 s sin tocar nada.</li>
+    <li><b>2 · Grabar arranque:</b> pulsa el botón y presiona Power en el celular. Al terminar da el veredicto.</li>
+    <li>Con un celular <b>bueno</b>, escribe el modelo y pulsa <b>Guardar como ola buena</b>. Después se dibuja en gris para comparar.</li>
+  </ol>
+  <div class="dos">
+    <div class="tabla"><table>
+      <tr><th>Antes de Power</th><th>Veredicto</th></tr>
+      <tr><td class="num">&lt; 5 mA</td><td class="ok">Sin fuga</td></tr>
+      <tr><td class="num">5 – 20 mA</td><td>Pequeño: normal en algunos modelos</td></tr>
+      <tr><td class="num">20 – 150 mA</td><td class="warn">Fuga o medio corto</td></tr>
+      <tr><td class="num">150 – 500 mA</td><td class="bad">Consumo alto sin arrancar</td></tr>
+      <tr><td class="num">≥ 0.5 A</td><td class="bad">Corto en VCC_MAIN → Inyección</td></tr>
+    </table></div>
+    <div class="tabla"><table>
+      <tr><th>Ola de arranque</th><th>Qué significa</th></tr>
+      <tr><td class="ok">Fluctúa</td><td>Normal. Si no da imagen, revisa la parte de pantalla.</td></tr>
+      <tr><td class="bad">Se queda fija</td><td>CPU, RAM, NAND, reloj o una línea que no arranca. Anota el valor.</td></tr>
+      <tr><td class="bad">Bucle</td><td>Sube, cae a 0 y repite: NAND, CPU, software o un sensor.</td></tr>
+      <tr><td class="bad">No reacciona</td><td>Botón o flex, línea de encendido, carga/PMIC.</td></tr>
+    </table></div>
+  </div>
+  <div class="tip">Al grabar el arranque, el panel le pide a la fuente unas 10 lecturas por segundo (ella sola manda 2). Se ven bien los escalones del arranque; los picos de milisegundos no.</div>
+</section>
+
+<section id="laptop">
+  <h2>Laptop <span class="pest">PESTAÑA LAPTOP</span></h2>
+  <ol>
+    <li>+ a la entrada de la placa (después del conector de carga) o a la línea principal, − a GND, sin batería.</li>
+    <li>Pon el voltaje final (19 V de fábrica), el límite de corriente y el paso. Pulsa <b>Medir curva</b>: el voltaje sube por pasos y se detiene si la corriente llega al límite.</li>
+    <li>Veredicto: <span class="bad">corto en la línea principal</span> (con su resistencia), <span class="warn">consume desde voltaje muy bajo</span>, sin consumo (revisa la entrada) o <span class="ok">sin corto</span> con su consumo de reposo.</li>
+    <li>Con una placa buena, escribe el modelo y pulsa <b>Guardar como curva buena</b> para comparar después.</li>
+  </ol>
+  <div class="ojo">Para 19–20 V necesitas un adaptador de entrada de más de 20 V. El panel te dice hasta dónde llega el actual.</div>
+</section>
+
+<section id="probador">
+  <h2>Probador de piezas <span class="pest">PESTAÑA PROBADOR</span></h2>
+  <p class="para">Asistente paso a paso: te dice dónde va cada punta y al final da el resultado. Corriente limitada a 20 mA (50 mA en la ganancia hFE).</p>
+  <div class="tabla"><table>
+    <tr><th>Pieza</th><th>Qué mide</th><th>Opciones</th></tr>
+    <tr><td>Diodo / LED</td><td>Vf a 5, 10 y 20 mA, tipo de diodo o color de LED, fuga al revés</td><td>—</td></tr>
+    <tr><td>Zener</td><td>Vz a 5 y 10 mA, y el directo</td><td>—</td></tr>
+    <tr><td>Transistor BJT</td><td>6 pares de patas → NPN o PNP, base, emisor y colector; ganancia hFE</td><td>Resistencia de base (47 kΩ)</td></tr>
+    <tr><td>MOSFET</td><td>Corto D-S, diodo interno, umbral Vgs(th)</td><td>Canal N o P</td></tr>
+    <tr><td>Capacitor</td><td>Cortos y fugas grandes al 90 % de su voltaje</td><td>Voltaje del capacitor</td></tr>
+  </table></div>
+  <ul>
+    <li>Prueba la pieza fuera de la placa.</li>
+    <li><b>⟲ Voltea la pieza</b> cuando el paso lo pida. Si no la volteas, el paso 2 mide lo mismo que el 1: el panel <b>no avanza</b> y te lo avisa en rojo. Aunque se te olvide, la pieza no se daña: el voltaje sube desde abajo y se detiene en cuanto conduce, con 5 mA.</li>
+    <li>Una resistencia mide igual en los dos sentidos: pulsa Medir otra vez y el panel te dirá su valor aproximado.</li>
+    <li>Capacitores: la fuente no ve fugas menores de 1–2 mA y no mide µF ni ESR. Si no llega a su voltaje (por ejemplo uno de 50 V), te avisa que la prueba es parcial. <b>Descárgalo con una resistencia al terminar.</b></li>
+  </ul>
+</section>
+
+<section id="leds">
+  <h2>LEDs en vivo <span class="pest">PESTAÑA LEDS</span></h2>
+  <ol>
+    <li><b>Conecta el LED antes de encender:</b> + al ánodo (pata larga), − al cátodo.</li>
+    <li>Elige la corriente (1 a 30 mA) y pulsa <b>Encender LED</b>. El voltaje sube solo desde abajo hasta que conduce y se queda apenas encima de su Vf.</li>
+    <li>Ves su Vf, el tipo de LED y, a la derecha, la <b>resistencia en serie</b> para 3.3, 5, 9, 12 o 24 V (valor exacto, comercial y potencia).</li>
+  </ol>
+  <div class="ojo">Si quitas el LED, la salida se apaga sola. El «Tope de voltaje» es solo el límite de la subida: 4 V para un LED; para varios en serie, la suma de sus Vf + 1 V.</div>
+</section>
+
+<section id="secuencia">
+  <h2>Secuencia <span class="pest">PESTAÑA SECUENCIA</span></h2>
+  <p class="para">La fuente sigue sola una tabla de pasos: voltaje, corriente máxima, duración y si la salida queda encendida o apagada.</p>
+  <ul>
+    <li><b>Ejemplos:</b> ciclos de arranque (encender/apagar 50 veces), tolerancia de 12 V, 5 V USB y 3.3 V, subida suave a 12 V, prueba larga de 1 hora.</li>
+    <li><b>Editar:</b> escribe los valores y usa Agregar, Cambiar, Quitar, Subir o Bajar. La duración acepta <code>30</code>, <code>2m</code> o <code>1h</code>.</li>
+    <li><b>Guardar como…</b> guarda tu secuencia; aparece con ★ arriba de los ejemplos.</li>
+    <li>Mientras corre: barra de progreso y la fila del paso actual resaltada. Al terminar apaga la salida si dejas marcada la opción.</li>
+  </ul>
+</section>
+
+<section id="otras">
+  <h2>Otras pestañas</h2>
+  <div class="dos">
+    <div><h3>Gráfica</h3><p>Voltaje y corriente en el tiempo, de 30 s a 10 min. <b>Muestreo rápido</b> (activado de fábrica): el panel le pide a la fuente ~10 lecturas por segundo en vez de las 2 que manda sola.</p></div>
+    <div><h3>Protecciones</h3><p>OVP, OCP, OPP, OTP y LVP. Para placas conviene un OCP bajo, por ejemplo 0.5 A.</p></div>
+    <div><h3>Barrido I-V</h3><p>Sube el voltaje por pasos (siempre desde 0 V) y dibuja la corriente. Se puede <b>detener al llegar al límite</b>. A la derecha da un <b>veredicto</b> (corto o resistencia con su valor, codo tipo diodo/regulador, subida gradual, abierto), un resumen y la <b>tabla de puntos</b>: clic en una fila la marca en la gráfica. Escribe el modelo y pulsa <b>Guardar como curva buena</b> para compararla después; las últimas 3 curvas quedan punteadas detrás. <b>Escala log</b> para ver fugas pequeñas junto a corrientes grandes.</p></div>
+    <div><h3>Todas las gráficas</h3><p><b>Rueda</b> = acercar o alejar donde está el ratón · <b>arrastrar</b> = mover · <b>doble clic</b> = ver todo · pasa el ratón por la curva para ver el valor del punto (en el barrido: voltaje, corriente y resistencia).</p></div>
+    <div><h3>Registro CSV</h3><p>Guarda todas las lecturas cada 0.2 a 60 s en la carpeta <code>registros</code>.</p></div>
+  </div>
+</section>
+
+<section id="atajos">
+  <h2>Atajos</h2>
+  <div class="tabla"><table>
+    <tr><th>Tecla</th><th>Qué hace</th></tr>
+    <tr><td class="num">F5</td><td>Enciende o apaga la salida</td></tr>
+    <tr><td class="num">Enter</td><td>Aplica el campo de voltaje o corriente</td></tr>
+    <tr><td class="num">Ctrl+1 … Ctrl+6</td><td>Usa la memoria M1 … M6</td></tr>
+    <tr><td class="num">Rueda del ratón</td><td>Sobre el amperímetro: cambia la escala</td></tr>
+  </table></div>
+</section>
+
+<section id="seguridad">
+  <h2>Seguridad: para no quemar nada</h2>
+  <div class="dos">
+    <div>
+      <h3>Lo que el panel hace solo</h3>
+      <ul>
+        <li>Diodos, LEDs, zener, Buscar corto e Inyección <b>suben el voltaje desde abajo</b>, hasta que pasa la corriente, sin llegar de golpe al máximo.</li>
+        <li>La inyección se detiene al llegar a la <b>potencia máxima</b>, y además deja programadas OCP y OPP <b>dentro de la fuente</b>: si la app se cierra o se suelta el USB, la fuente corta sola.</li>
+        <li>Con la salida encendida, si el voltaje sube mucho de golpe (por ejemplo 12 en vez de 1.2), <b>pide confirmación</b>.</li>
+        <li>Al terminar cada prueba, apaga la salida y devuelve la fuente a como estaba.</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Lo que depende de ti</h3>
+      <ul>
+        <li><b>Conecta y desconecta la placa con la salida APAGADA.</b> Con la salida encendida y sin nada conectado, el capacitor de la fuente queda cargado y descarga un golpe al conectar.</li>
+        <li>Revisa la <b>polaridad</b> antes de encender.</li>
+        <li>En Control, Secuencia y Barrido el voltaje es el que tú escribes: empieza bajo y con un límite de corriente pequeño.</li>
+        <li>Nunca inyectes más voltaje que el del riel: usa los tipos de riel de la pestaña Inyección.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="problemas">
+  <h2>Problemas comunes</h2>
+  <div class="tabla"><table>
+    <tr><th>Pasa esto</th><th>Haz esto</th></tr>
+    <tr><td>No detecta la fuente</td><td>Con el panel abierto, desconecta y vuelve a conectar el USB. Cierra cualquier otro programa que use la fuente.</td></tr>
+    <tr><td>«Se perdió la conexión»</td><td>El panel la vuelve a buscar sola. Revisa el cable o reconéctalo.</td></tr>
+    <tr><td>No sube del voltaje que quiero</td><td>El máximo depende del adaptador de entrada (12 V → ~11.8 V).</td></tr>
+    <tr><td>Temperatura «sin dato válido»</td><td>La fuente manda un valor imposible (unos −16 °C). No afecta lo demás.</td></tr>
+    <tr><td>Un cambio nuevo no aparece</td><td>Cierra el panel y vuelve a abrirlo.</td></tr>
+  </table></div>
+</section>
+
+<footer>Panel DPS-150 · Herramientas\DPS-150 · Guía de la versión del 19/11/2026.</footer>
+</div>
