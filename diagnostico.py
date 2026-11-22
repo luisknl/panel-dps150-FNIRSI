@@ -15,6 +15,7 @@ import json
 import math
 import os
 import re
+import sys
 import statistics
 import time
 import tkinter as tk
@@ -23,7 +24,9 @@ from tkinter import messagebox, ttk
 from probador import encender_suave, opp_respaldo, subir_hasta_cc
 
 GRIS, ROJO, VERDE, NARANJA, AZUL, AMBAR = "#777777", "#c62828", "#1a8f3a", "#e07b00", "#1f6fd1", "#b8860b"
-CARPETA = os.path.dirname(os.path.abspath(__file__))
+# en el .exe, los datos del usuario van junto al ejecutable (no en la carpeta temporal)
+CARPETA = (os.path.dirname(sys.executable) if getattr(sys, "frozen", False)
+           else os.path.dirname(os.path.abspath(__file__)))
 CARPETA_REF = os.path.join(CARPETA, "referencias")
 
 

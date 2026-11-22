@@ -60,9 +60,18 @@
 
 ## Instalación
 
-**Requisitos:** Windows 10 u 11, [Python 3.10 o más nuevo](https://www.python.org/downloads/) (marca *"Add Python to PATH"* al instalarlo) y una FNIRSI DPS-150 con cable USB-C de datos.
+**Necesitas:** Windows 10 u 11 y una FNIRSI DPS-150 con cable USB-C de datos.
 
-1. Descarga este repositorio: botón verde **Code → Download ZIP**. Descomprímelo.
+### Opción A · Programa listo (recomendado, sin instalar nada)
+1. Entra a **[Releases](../../releases/latest)** y descarga **`Panel DPS-150.exe`**.
+2. Ponlo en una carpeta propia, por ejemplo `Documentos\Panel DPS-150`. Ahí guardará tus registros, curvas y configuración.
+3. Doble clic en **`Panel DPS-150.exe`**.
+   Si Windows muestra *"Windows protegió su PC"*, pulsa **Más información → Ejecutar de todas formas**. Aparece porque el programa no está firmado digitalmente.
+
+### Opción B · Desde el código (para modificarlo)
+Requiere [Python 3.10 o más nuevo](https://www.python.org/downloads/): al instalarlo, marca *"Add Python to PATH"*.
+
+1. Descarga este repositorio: botón verde **Code → Download ZIP**, y luego clic derecho → **Extraer todo**.
 2. Doble clic en **`Panel DPS-150.bat`**. La primera vez instala solo lo que falta (`pyserial`).
 
 O desde una terminal:
@@ -154,7 +163,9 @@ fuente.cerrar()
 
 **Features:** live readings with an arc ammeter and fast sampling (~10 readings/s instead of 2); short finder in mΩ with probe zeroing, reference and tone; stepped current injection (0.2 → 2 A) that never exceeds the rail voltage, with a **pulsed "heartbeat" mode** so the shorted part blinks in a thermal camera; phone mode (leakage before Power, boot-current waveform with automatic verdict, compare against a known-good phone); laptop main-rail curve with verdict; interactive I-V sweep (zoom, cursor, table, log scale, verdict, reference curves); component tester (diode, LED, zener, BJT pinout and hFE, MOSFET, capacitor) that detects if you forgot to flip the part; live LED tester with series-resistor calculator; sequences; memories M1–M6; transparent always-on-top readings over your microscope view; light and dark themes.
 
-**Install (Windows 10/11, Python 3.10+):** download the ZIP, then double-click `Panel DPS-150.bat`, or run `pip install -r requirements.txt` and then `python panel_dps150.py`. Try it without hardware with `--sim`.
+**Install (Windows 10/11):** download **`Panel DPS-150.exe`** from [Releases](../../releases/latest) and run it, no Python needed. If Windows SmartScreen appears, click *More info → Run anyway* (the app is not code-signed). From source (Python 3.10+): `pip install -r requirements.txt`, then `python panel_dps150.py`. Try it without hardware with `--sim`.
+
+**Build the .exe yourself:** `pip install pyinstaller`, then `pyinstaller --onefile --windowed --name "Panel DPS-150" --icon docs/icono.ico --add-data "GUIA.html;." --add-data "docs/icono.ico;." panel_dps150.py`
 
 **Important:** open the panel **before** plugging in the supply's USB cable. The DPS-150 drops off USB about 4 s after plugging in if no program opens its port.
 

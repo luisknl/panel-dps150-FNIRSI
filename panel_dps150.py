@@ -26,7 +26,11 @@ from tkinter import filedialog, messagebox, ttk
 import dps150 as P
 from dps150_sim import PuertoSimulado
 
-CARPETA = os.path.dirname(os.path.abspath(__file__))
+if getattr(sys, "frozen", False):                      # ejecutable .exe (PyInstaller)
+    CARPETA = os.path.dirname(sys.executable)          # datos del usuario: junto al .exe
+    RECURSOS = getattr(sys, "_MEIPASS", CARPETA)       # archivos incluidos en el .exe (la guia)
+else:
+    CARPETA = RECURSOS = os.path.dirname(os.path.abspath(__file__))
 CARPETA_REG = os.path.join(CARPETA, "registros")
 
 AZUL = "#1f6fd1"
@@ -1015,7 +1019,7 @@ class Panel:
 
     def abrir_guia(self):
         """Abre la guia rapida (GUIA.html) en el navegador."""
-        fuente = os.path.join(CARPETA, "GUIA.html")
+        fuente = os.path.join(RECURSOS, "GUIA.html")
         destino = os.path.join(CARPETA, "Guía rápida DPS-150.html")
         try:
             with open(fuente, encoding="utf-8") as fh:
@@ -2154,6 +2158,13 @@ def main():
     except Exception:
         pass
     root = tk.Tk()
+    for ico in (os.path.join(RECURSOS, "icono.ico"), os.path.join(RECURSOS, "docs", "icono.ico")):
+        if os.path.exists(ico):            # icono de la ventana (en vez de la pluma de Python)
+            try:
+                root.iconbitmap(default=ico)
+            except tk.TclError:
+                pass
+            break
     Panel(root, simulado="--sim" in sys.argv)
     root.mainloop()
 
