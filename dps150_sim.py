@@ -35,6 +35,105 @@ def suma(*modelos):
     return lambda v: sum(m(v) for m in modelos)
 
 
+# Voltaje en circuito abierto por celda segun el estado de carga (0 = vacia, 1 = llena).
+# Pasado de 1.0 sube rapido: asi la corriente cae sola en la fase CV, como en una bateria real.
+OCV = {
+    "liion": [(0.0, 3.00), (0.05, 3.45), (0.1, 3.55), (0.3, 3.68), (0.5, 3.75), (0.7, 3.90),
+              (0.9, 4.08), (1.0, 4.20), (1.05, 4.45)],
+    "lifepo4": [(0.0, 2.50), (0.05, 3.00), (0.1, 3.20), (0.5, 3.30), (0.9, 3.35), (0.97, 3.42),
+                (1.0, 3.60), (1.05, 3.85)],
+    "plomo": [(0.0, 1.95), (0.5, 2.05), (0.9, 2.20), (1.0, 2.40), (1.05, 2.60)],
+    "nimh": [(0.0, 1.00), (0.1, 1.20), (0.5, 1.30), (0.9, 1.38), (1.0, 1.42), (1.5, 1.48), (1.8, 1.55),
+             (2.0, 1.70)],
+}
+
+
+class BateriaSim:
+    """Bateria simulada: corriente = (V - Voc) / R, y el estado de carga sube con la corriente.
+
+    acelerar = cuantas veces mas rapido pasa el tiempo para la bateria (60 = 1 h en 1 min).
+    """
+
+    def __init__(self, tipo="liion", celdas=1, capacidad_mah=2000, soc=0.2, r_celda=0.1, acelerar=60.0,
+                 dormida=False, despierta_a=3.0):
+        self.tabla, self.celdas = OCV[tipo], celdas
+        self.cap_ah, self.soc = capacidad_mah / 1000.0, soc
+        self.r = r_celda * celdas
+        self.acelerar = acelerar
+        self.desconectada = False      # para simular que se suelta un cable
+        # bateria nueva "dormida": su proteccion (PCM) tiene la salida cortada y en el conector se ven 0 V;
+        # despierta cuando recibe al menos `despierta_a` voltios (None = nunca despierta: bateria mala)
+        self.dormida, self.despierta_a = dormida, despierta_a
+
+    def voc(self):
+        if self.dormida:
+            return 0.0
+        t, s = self.tabla, self.soc
+        if s <= t[0][0]:
+            return t[0][1] * self.celdas
+        for (sa, va), (sb, vb) in zip(t, t[1:]):
+            if s <= sb:
+                return (va + (vb - va) * (s - sa) / (sb - sa)) * self.celdas
+        return t[-1][1] * self.celdas
+
+    def __call__(self, v):
+        if self.desconectada:
+            return 0.0
+        if self.dormida:
+            if self.despierta_a is None or v < self.despierta_a:
+                return 0.0
+            self.dormida = False
+        return max(0.0, (v - self.voc()) / self.r)
+
+    def cargar(self, i, dt):
+        if not self.desconectada and not self.dormida:
+            self.soc += i * dt * self.acelerar / 3600.0 / self.cap_ah
+
+
+class LaptopSim:
+    """Placa de laptop alimentada por el jack DC. Consume como una resistencia que cambia con el tiempo
+    (R = 19^2 / P) para que el simulador pueda resolver CC/CV. Llamar a presionar() = boton Power.
+
+    escenario: normal, bucle, apaga, baja, fija, no_reacciona, sin_reposo, corto
+    """
+
+    def __init__(self, escenario="normal", p_reposo=0.4):
+        self.escenario = escenario
+        self.p_reposo = 0.0 if escenario == "sin_reposo" else p_reposo
+        self.t_power = None
+        self.desconectada = False
+
+    def presionar(self):
+        if self.t_power is None:
+            self.t_power = time.monotonic()
+
+    def potencia(self):
+        e = self.escenario
+        if self.t_power is None or e in ("no_reacciona", "sin_reposo"):
+            return self.p_reposo
+        t = time.monotonic() - self.t_power
+        if e == "normal":
+            if t < 0.6:
+                return self.p_reposo + 15 * t
+            return 14 + 5 * math.sin(t * 2.1) + 3 * math.sin(t * 5.3) + random.uniform(-1.5, 1.5)
+        if e == "bucle":
+            return 11 + random.uniform(-0.5, 0.5) if t % 6 < 4 else self.p_reposo
+        if e == "apaga":
+            return 12 + random.uniform(-1, 1) if t < 5 else self.p_reposo
+        if e == "baja":
+            return 3.0 * (1 + random.uniform(-0.01, 0.01)) if t > 0.3 else self.p_reposo
+        if e == "fija":
+            return 9.0 * (1 + random.uniform(-0.005, 0.005)) if t > 0.3 else self.p_reposo
+        return self.p_reposo
+
+    def __call__(self, v):
+        if v < 6:                       # por debajo de ~6 V la entrada no arranca nada
+            return v / 2000.0
+        if self.escenario == "corto" and self.t_power is not None:
+            return v / 1.5
+        return v / (19.0 ** 2 / max(0.001, self.potencia()))
+
+
 class PuertoSimulado:
     def __init__(self, resistencia=10.0, vin=20.0):
         self.r = resistencia
@@ -58,10 +157,14 @@ class PuertoSimulado:
 
     # --- modelo electrico -------------------------------------------------
     def _medir(self):
+        bat = self.modelo if hasattr(self.modelo, "voc") and not self.modelo.desconectada else None
         if not self.on:
-            return 0.0, 0.0, 0.0, 1
+            # con la salida apagada la fuente real muestra el voltaje de la bateria conectada
+            return (bat.voc() if bat else 0.0), 0.0, 0.0, 1
         f = self.modelo or (lambda x: x / self.r)     # carga: corriente en funcion del voltaje
         v, i, modo = self.vset, f(self.vset), 1        # CV
+        if bat and self.vset < bat.voc():              # la fuente no absorbe: queda el voltaje de la bateria
+            v = bat.voc()
         if i > self.iset:                              # CC: buscar V donde f(V) = Iset
             lo, hi = 0.0, self.vset
             for _ in range(50):
@@ -84,6 +187,8 @@ class PuertoSimulado:
         self._ultimo_calculo = ahora
         v, i, p, _ = self._medir()
         self._proteger(v, i, p)
+        if hasattr(self.modelo, "cargar"):
+            self.modelo.cargar(i, dt)
         self.ah += i * dt / 3600
         self.wh += p * dt / 3600
         self.temp += ((28 + p * 0.4) - self.temp) * min(1.0, dt / 20)

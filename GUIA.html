@@ -63,14 +63,14 @@ footer { color: var(--muted); font-size: 13px; margin-top: 26px }
   <a href="#inicio">Empezar</a><a href="#cvcc">CV y CC</a><a href="#principal">Pantalla principal</a>
   <a href="#flotantes">Flotantes</a><a href="#memorias">Memorias</a><a href="#corto">Buscar corto</a><a href="#inyeccion">Inyección</a>
   <a href="#celular">Celular</a><a href="#laptop">Laptop</a><a href="#probador">Probador</a><a href="#leds">LEDs</a>
-  <a href="#secuencia">Secuencia</a><a href="#otras">Otras pestañas</a><a href="#atajos">Atajos</a><a href="#seguridad">Seguridad</a><a href="#problemas">Problemas</a>
+  <a href="#secuencia">Secuencia</a><a href="#cargador">Cargador</a><a href="#otras">Otras pestañas</a><a href="#atajos">Atajos</a><a href="#seguridad">Seguridad</a><a href="#problemas">Problemas</a>
 </nav>
 
 <section id="inicio">
   <h2>Empezar</h2>
   <ol>
     <li>Abre <b>Panel DPS-150</b> desde el escritorio.</li>
-    <li><b>Con el panel ya abierto</b>, conecta el cable USB de la fuente (o desconéctalo y vuelve a conectarlo). El panel la encuentra solo y arriba aparece en verde <code>COMx: DPS-150 … FW V1.2</code>.</li>
+    <li><b>Con el panel ya abierto</b>, conecta el cable USB de la fuente (o desconéctalo y vuelve a conectarlo). El panel la encuentra solo y arriba aparece en verde <code>COM9: DPS-150 … FW V1.2</code>.</li>
     <li>Conectar no cambia nada en la fuente: ni el voltaje ni la salida.</li>
   </ol>
   <div class="tip">La fuente se suelta del USB unos 4 segundos después de enchufarla si ningún programa la abre. Por eso hay que abrir el panel <b>antes</b> de conectar el cable.</div>
@@ -92,7 +92,20 @@ footer { color: var(--muted); font-size: 13px; margin-top: 26px }
     <li><b>Salida medida:</b> voltaje (azul), corriente (naranja), potencia, modo CV/CC, voltaje de entrada, Ah y Wh acumulados. Si salta una protección, aparece en rojo.</li>
     <li><b>Amperímetro:</b> arco que cambia de color (naranja normal, ámbar pasado el 75 %, rojo pasado el 90 %). Escala <code>Auto</code> o fija de 10 mA a 5 A; también cambia con la <b>rueda del ratón</b> sobre el medidor. <b>Pico</b> deja un triangulito rojo en la corriente máxima; clic en el medidor para borrarlo.</li>
     <li><b>Control:</b> escribe el voltaje y el límite de corriente y pulsa <span class="k">Enter</span> o <b>Aplicar</b>. El botón grande enciende o apaga la salida.</li>
+    <li><b>M1 … M6</b> debajo de Control: un clic usa esa memoria (muestran su voltaje). Debajo, la línea <b>OVP · OCP · OPP</b>: clic para ir a cambiarlas.</li>
+    <li><b>● REC</b> arriba: graba todas las lecturas en CSV, estés en la pestaña que estés. Mientras graba se pone rojo y cuenta las filas.</li>
   </ul>
+  <h3>Cómo está organizado</h3>
+  <p class="para">A la izquierda hay 5 grupos. Cada uno muestra arriba solo sus pestañas:</p>
+  <div class="tabla"><table>
+    <tr><th>Grupo</th><th>Pestañas</th></tr>
+    <tr><td><b>Placas</b> <span class="k">Alt+1</span></td><td>Celular · Laptop · Cortos (Medir resistencia / Inyección escalonada) · Barrido I-V</td></tr>
+    <tr><td><b>Piezas</b> <span class="k">Alt+2</span></td><td>Probador · LEDs</td></tr>
+    <tr><td><b>Baterías</b> <span class="k">Alt+3</span></td><td>Cargador · Activar batería · Historial</td></tr>
+    <tr><td><b>Monitoreo</b> <span class="k">Alt+4</span></td><td>Gráfica · Secuencia</td></tr>
+    <tr><td><b>Fuente</b> <span class="k">Alt+5</span></td><td>Protecciones · Memorias · Ajustes (equipo, brillo, volumen, intervalo del CSV, atajos)</td></tr>
+  </table></div>
+  <p class="para"><span class="k">Ctrl+Tab</span> pasa a la siguiente pestaña del grupo. El panel abre donde lo dejaste. Si algo está en marcha (una carga, una secuencia, una inyección), su pestaña y su grupo muestran un <b>●</b>.</p>
   <div class="tip">El voltaje máximo depende de tu adaptador de entrada: con uno de 12 V llegas a unos 11.8 V; con uno de 20 V, a unos 19.7 V. El panel lo muestra como <code>Máx.</code>.</div>
 </section>
 
@@ -109,7 +122,7 @@ footer { color: var(--muted); font-size: 13px; margin-top: 26px }
 </section>
 
 <section id="memorias">
-  <h2>Memorias <span class="pest">PESTAÑA MEMORIAS</span></h2>
+  <h2>Memorias <span class="pest">FUENTE › MEMORIAS</span></h2>
   <ul>
     <li><b>M1–M6 de la fuente:</b> <b>Usar</b> aplica ese voltaje y corriente; <b>Guardar</b> lo escribe en la fuente y lo comprueba (<span class="ok">✓</span> confirmado, <span class="bad">⚠</span> no se confirmó); <b>← Actual</b> copia lo programado.</li>
     <li><b>Perfiles en la PC:</b> todos los que quieras, con nombre, voltaje, corriente y OCP opcional. Doble clic para usar uno; <b>Enviar</b> lo pasa a una memoria M1–M6.</li>
@@ -118,7 +131,7 @@ footer { color: var(--muted); font-size: 13px; margin-top: 26px }
 </section>
 
 <section id="corto">
-  <h2>Buscar corto <span class="pest">PESTAÑA BUSCAR CORTO</span></h2>
+  <h2>Buscar corto <span class="pest">PLACAS › CORTOS › MEDIR RESISTENCIA</span></h2>
   <p class="para">Mide la resistencia del riel en mΩ y ayuda a ubicar el corto.</p>
   <ol>
     <li><b>Cero de puntas:</b> une las puntas de la fuente, inicia <b>Medir resistencia</b> y pulsa <b>Cero de puntas</b>. La resistencia de los cables se resta desde entonces.</li>
@@ -137,7 +150,7 @@ footer { color: var(--muted); font-size: 13px; margin-top: 26px }
 </section>
 
 <section id="inyeccion">
-  <h2>Inyección escalonada <span class="pest">PESTAÑA INYECCIÓN</span></h2>
+  <h2>Inyección escalonada <span class="pest">PLACAS › CORTOS › INYECCIÓN ESCALONADA</span></h2>
   <p class="para">El método de los talleres para encontrar el componente en corto: corriente en escalones, voltaje que sube despacio y nunca pasa del voltaje del riel.</p>
   <ol>
     <li>Elige el <b>riel en corto</b>: VCC_MAIN de celular (4.0 V máx.), 5 V, 3.3 V, 1.8 V, CPU/RAM ~1 V o línea principal de laptop.</li>
@@ -157,7 +170,7 @@ footer { color: var(--muted); font-size: 13px; margin-top: 26px }
 </section>
 
 <section id="celular">
-  <h2>Celular <span class="pest">PESTAÑA CELULAR</span></h2>
+  <h2>Celular <span class="pest">PLACAS › CELULAR</span></h2>
   <p class="para">Alimenta el celular por el conector de batería (cable de arranque DC), como una fuente de taller.</p>
   <ol>
     <li>Revisa la polaridad. De fábrica: <code>4.20 V</code>, límite <code>1.0 A</code>. Nunca pasa de 4.45 V y deja la protección de sobrevoltaje puesta.</li>
@@ -183,10 +196,28 @@ footer { color: var(--muted); font-size: 13px; margin-top: 26px }
     </table></div>
   </div>
   <div class="tip">Al grabar el arranque, el panel le pide a la fuente unas 10 lecturas por segundo (ella sola manda 2). Se ven bien los escalones del arranque; los picos de milisegundos no.</div>
+
+  <h3>Activar una batería nueva que marca 0 V <span class="pest">BATERÍAS › ACTIVAR BATERÍA</span></h3>
+  <p class="para">Las baterías nuevas suelen llegar con su protección interna (PCM) cortada: en el conector marcan 0 V y el celular no enciende. Un pulso de voltaje la despierta.</p>
+  <ol>
+    <li>Saca la batería del celular. Pon la punta roja en <b>+</b> y la negra en <b>−</b> del conector flex: son los pines de los extremos. <b>No toques los del centro</b> (datos y sensor de temperatura). Sujétalas firmes, mejor con pinzas.</li>
+    <li>En <b>Baterías › Activar batería</b> (o con el botón «¿Batería nueva en 0 V?» de Celular), pulsa <b>Activar batería (4.20 V)</b>. De fábrica: límite de <code>0.3 A</code>, pulsos de <code>3 s</code>, hasta 3 intentos.</li>
+    <li>El panel mide antes y después con la salida apagada y da el veredicto.</li>
+  </ol>
+  <div class="tabla"><table>
+    <tr><th>Resultado</th><th>Qué hacer</th></tr>
+    <tr><td class="ok">Ya está activa</td><td>Marcaba 2.5 V o más desde el principio. No hace falta pulso; si el celular no enciende, la falla es otra.</td></tr>
+    <tr><td class="ok">Batería activada</td><td>Despertó y aceptó corriente. Muestra el voltaje y la carga aproximada. Ya la puedes instalar.</td></tr>
+    <tr><td class="warn">Despertó, pero muy baja</td><td>Menos de 3.0 V: cárgala antes de instalarla (Cargador, Li-ion, 0.1C) y vigílala.</td></tr>
+    <tr><td class="bad">Acepta corriente pero no despierta</td><td>Su protección vuelve a cortar: celdas demasiado descargadas o protección dañada. Reclámala.</td></tr>
+    <tr><td class="bad">No despertó</td><td>No entró corriente en ningún pulso. Revisa el contacto y los pines; si están bien, está defectuosa.</td></tr>
+    <tr><td class="bad">Corto</td><td>Corriente al límite con casi 0 V. No la instales.</td></tr>
+  </table></div>
+  <div class="ojo">Usa 4.20 V aunque la batería sea de alto voltaje (4.35/4.40 V): basta para despertarla y no la sobrecarga. La OVP y la OCP de la fuente quedan puestas durante los pulsos y al terminar vuelven a como estaban.</div>
 </section>
 
 <section id="laptop">
-  <h2>Laptop <span class="pest">PESTAÑA LAPTOP</span></h2>
+  <h2>Laptop <span class="pest">PLACAS › LAPTOP</span></h2>
   <ol>
     <li>+ a la entrada de la placa (después del conector de carga) o a la línea principal, − a GND, sin batería.</li>
     <li>Pon el voltaje final (19 V de fábrica), el límite de corriente y el paso. Pulsa <b>Medir curva</b>: el voltaje sube por pasos y se detiene si la corriente llega al límite.</li>
@@ -194,10 +225,33 @@ footer { color: var(--muted); font-size: 13px; margin-top: 26px }
     <li>Con una placa buena, escribe el modelo y pulsa <b>Guardar como curva buena</b> para comparar después.</li>
   </ol>
   <div class="ojo">Para 19–20 V necesitas un adaptador de entrada de más de 20 V. El panel te dice hasta dónde llega el actual.</div>
+
+  <h3>Arranque por el jack DC (presiona Power)</h3>
+  <p class="para">Igual que la ola del celular, pero para laptops: alimentas como si fuera su cargador y el panel interpreta cómo se mueve el consumo al presionar Power.</p>
+  <ol>
+    <li>Quita la batería. Conecta la fuente al jack DC (o a la entrada de la placa) respetando + y −.</li>
+    <li>Pon el <b>voltaje de su cargador</b> (dice OUTPUT en la etiqueta: 19, 19.5 o 20 V) y el límite (<code>3 A</code> de fábrica).</li>
+    <li>Pulsa <b>Encender y grabar arranque</b>. El voltaje sube por pasos; si ya llega al límite antes de Power, avisa «corto en la entrada». Luego mide el <b>reposo</b> 3 s.</li>
+    <li>Cuando diga <b>● PRESIONA POWER AHORA</b>, presiónalo. Graba 60 s y da el veredicto.</li>
+    <li>Con una laptop <b>buena</b>, escribe el modelo y pulsa <b>Guardar como arranque bueno</b>: después se dibuja en gris.</li>
+  </ol>
+  <p class="para">La gráfica muestra <b>watts</b>, para que los valores sirvan igual a 19 o a 20 V.</p>
+  <div class="tabla"><table>
+    <tr><th>Lo que hace la potencia</th><th>Veredicto</th><th>Dónde buscar</th></tr>
+    <tr><td>0 W antes y después de Power</td><td class="bad">No ve el adaptador</td><td>Jack DC, fusible y MOSFET de entrada, charger IC, rieles 3V/5V ALW del EC</td></tr>
+    <tr><td>Reposo 0.05–1.2 W y no cambia</td><td class="bad">No reacciona a Power</td><td>Botón y flex, señal de encendido, BIOS/EC</td></tr>
+    <tr><td>Sube y se queda fija bajo 6 W</td><td class="bad">Se queda en bajo</td><td>Secuencia de encendido (RSMRST#, SLP_S3#, PWROK), VRM del CPU, BIOS</td></tr>
+    <tr><td>Sube y se queda fija arriba de 6 W</td><td class="bad">Fija, sin POST</td><td>RAM, BIOS, CPU, chipset</td></tr>
+    <tr><td>Sube, vuelve al reposo y repite</td><td class="bad">Reinicia en bucle</td><td>RAM (otro módulo, limpiar contactos), BIOS, VRM que se protege</td></tr>
+    <tr><td>Sube y se apaga una vez</td><td class="bad">Arranca y se apaga</td><td>Temperatura (ventilador, pasta), VRM, BIOS, carga</td></tr>
+    <tr><td>Llega al límite de corriente</td><td class="bad">Corto al encender</td><td>VCORE, GPU, RAM: Inyección y cámara térmica</td></tr>
+    <tr><td>Sube y varía todo el tiempo</td><td class="ok">Arranque normal</td><td>Si no da imagen: pantalla y flex eDP/LVDS, backlight, GPU</td></tr>
+  </table></div>
+  <div class="ojo">Las laptops de 19–20 V solo arrancan si la fuente llega a ese voltaje: necesitas un cargador USB-C de 20 V en la entrada de la DPS-150. Con un adaptador de 12 V la fuente llega a ~11.7 V y muchas laptops no lo aceptan.</div>
 </section>
 
 <section id="probador">
-  <h2>Probador de piezas <span class="pest">PESTAÑA PROBADOR</span></h2>
+  <h2>Probador de piezas <span class="pest">PIEZAS › PROBADOR</span></h2>
   <p class="para">Asistente paso a paso: te dice dónde va cada punta y al final da el resultado. Corriente limitada a 20 mA (50 mA en la ganancia hFE).</p>
   <div class="tabla"><table>
     <tr><th>Pieza</th><th>Qué mide</th><th>Opciones</th></tr>
@@ -216,7 +270,7 @@ footer { color: var(--muted); font-size: 13px; margin-top: 26px }
 </section>
 
 <section id="leds">
-  <h2>LEDs en vivo <span class="pest">PESTAÑA LEDS</span></h2>
+  <h2>LEDs en vivo <span class="pest">PIEZAS › LEDS</span></h2>
   <ol>
     <li><b>Conecta el LED antes de encender:</b> + al ánodo (pata larga), − al cátodo.</li>
     <li>Elige la corriente (1 a 30 mA) y pulsa <b>Encender LED</b>. El voltaje sube solo desde abajo hasta que conduce y se queda apenas encima de su Vf.</li>
@@ -226,7 +280,7 @@ footer { color: var(--muted); font-size: 13px; margin-top: 26px }
 </section>
 
 <section id="secuencia">
-  <h2>Secuencia <span class="pest">PESTAÑA SECUENCIA</span></h2>
+  <h2>Secuencia <span class="pest">MONITOREO › SECUENCIA</span></h2>
   <p class="para">La fuente sigue sola una tabla de pasos: voltaje, corriente máxima, duración y si la salida queda encendida o apagada.</p>
   <ul>
     <li><b>Ejemplos:</b> ciclos de arranque (encender/apagar 50 veces), tolerancia de 12 V, 5 V USB y 3.3 V, subida suave a 12 V, prueba larga de 1 hora.</li>
@@ -236,6 +290,47 @@ footer { color: var(--muted); font-size: 13px; margin-top: 26px }
   </ul>
 </section>
 
+<section id="cargador">
+  <h2>Cargador de baterías <span class="pest">BATERÍAS › CARGADOR</span></h2>
+  <p class="para">Carga una batería y la apaga sola al terminar. Mide los mAh que entraron y guarda un historial por batería.</p>
+  <ol>
+    <li>Escribe un <b>nombre</b> para la batería (por ejemplo «Batería Dell #1»). La próxima vez, al elegirla se llenan solos la química, las celdas y la capacidad.</li>
+    <li>Elige la <b>química</b>, el <b>perfil</b>, las <b>celdas en serie</b> y la <b>capacidad</b> en mAh. La corriente, el corte y el tiempo máximo se calculan solos. Puedes cambiarlos, pero sin pasar del máximo seguro.</li>
+    <li>Pulsa <b>Iniciar carga</b>. El panel apaga la salida, mide la batería y revisa:
+      <ul>
+        <li>que la fuente tenga entrada suficiente por USB-C;</li>
+        <li>que la batería no esté ya por encima del objetivo;</li>
+        <li>que el voltaje cuadre con las celdas que elegiste;</li>
+        <li>si está muy descargada.</li>
+      </ul></li>
+  </ol>
+  <div class="tabla"><table>
+    <tr><th>Química</th><th>Cómo carga</th><th>Termina cuando…</th></tr>
+    <tr><td>Li-ion / LiPo</td><td>4.20, 4.10 o 3.80 V por celda, a 0.5C. Si está bajo 3.0 V por celda, empieza con una <b>precarga</b> suave a 0.1C (mínimo 3 min, hasta que el voltaje estimado en reposo llegue a 3.0 V)</td><td>en CV la corriente baja de 0.05C durante 10 s</td></tr>
+    <tr><td>LiFePO4</td><td>3.60 o 3.45 V por celda, a 0.5C. Precarga si está bajo 2.5 V por celda</td><td>igual que Li-ion</td></tr>
+    <tr><td>Plomo-ácido y gel</td><td>6 V (3 celdas) o 12 V (6 celdas): 14.4 V de ciclo, 13.65 V de flotación, 14.1 V para gel; a 0.1C</td><td>la corriente baja de 0.02C</td></tr>
+    <tr><td>NiMH / NiCd</td><td>carga lenta a 0.1C, con tope de 1.6 V por celda</td><td>entra el 150 % de la capacidad</td></tr>
+  </table></div>
+  <ul>
+    <li><b>Se detiene sola si:</b>
+      <ul>
+        <li>salta una protección de la fuente;</li>
+        <li>el voltaje pasa 0.15 V del objetivo;</li>
+        <li>alguien apaga la salida;</li>
+        <li>no pasa corriente;</li>
+        <li>la corriente cae de golpe (se soltó la batería o cortó su BMS);</li>
+        <li>entra más del 130 % de la capacidad;</li>
+        <li>se acaba el tiempo máximo;</li>
+        <li>la fuente deja de mandar lecturas.</li>
+      </ul></li>
+    <li><b>Respaldo:</b> programa la OVP en el objetivo + 0.3 V y la OCP un 20 % arriba de la corriente. Al terminar las devuelve como estaban.</li>
+    <li><b>Capacidad real:</b> si cargas la batería empezando <b>vacía</b>, el historial muestra qué porcentaje de su capacidad nominal le entró. Con menos del 80 %, la batería está gastada.</li>
+    <li>La curva de cada carga se guarda en <code>registros</code> (archivo <code>carga_….csv</code>). La PC no se suspende mientras carga.</li>
+    <li>Con <b>--sim</b> se conecta una batería falsa y el tiempo corre 60 veces más rápido (300 veces en NiMH).</li>
+  </ul>
+  <div class="ojo"><b>No dejes una batería cargando sola.</b> Si se suelta el USB, la fuente puede seguir con la salida encendida: apágala a mano. No hay balanceo: en packs de 2 celdas o más, cada celda debe estar pareja. Plomo y NiMH solo se han probado con el simulador.</div>
+</section>
+
 <section id="otras">
   <h2>Otras pestañas</h2>
   <div class="dos">
@@ -243,7 +338,8 @@ footer { color: var(--muted); font-size: 13px; margin-top: 26px }
     <div><h3>Protecciones</h3><p>OVP, OCP, OPP, OTP y LVP. Para placas conviene un OCP bajo, por ejemplo 0.5 A.</p></div>
     <div><h3>Barrido I-V</h3><p>Sube el voltaje por pasos (siempre desde 0 V) y dibuja la corriente. Se puede <b>detener al llegar al límite</b>. A la derecha da un <b>veredicto</b> (corto o resistencia con su valor, codo tipo diodo/regulador, subida gradual, abierto), un resumen y la <b>tabla de puntos</b>: clic en una fila la marca en la gráfica. Escribe el modelo y pulsa <b>Guardar como curva buena</b> para compararla después; las últimas 3 curvas quedan punteadas detrás. <b>Escala log</b> para ver fugas pequeñas junto a corrientes grandes.</p></div>
     <div><h3>Todas las gráficas</h3><p><b>Rueda</b> = acercar o alejar donde está el ratón · <b>arrastrar</b> = mover · <b>doble clic</b> = ver todo · pasa el ratón por la curva para ver el valor del punto (en el barrido: voltaje, corriente y resistencia).</p></div>
-    <div><h3>Registro CSV</h3><p>Guarda todas las lecturas cada 0.2 a 60 s en la carpeta <code>registros</code>.</p></div>
+    <div><h3>Registro CSV</h3><p>Botón <b>● REC</b> arriba. Guarda todas las lecturas en la carpeta <code>registros</code>; el intervalo (0.2 a 60 s) se elige en <b>Fuente › Ajustes</b>.</p></div>
+    <div><h3>Historial de baterías</h3><p><b>Baterías › Historial</b>: todas las baterías con nombre, su salud (% de la capacidad nominal) y cada carga. Doble clic abre la curva. «Cargar esta batería →» llena el Cargador.</p></div>
   </div>
 </section>
 
@@ -254,6 +350,8 @@ footer { color: var(--muted); font-size: 13px; margin-top: 26px }
     <tr><td class="num">F5</td><td>Enciende o apaga la salida</td></tr>
     <tr><td class="num">Enter</td><td>Aplica el campo de voltaje o corriente</td></tr>
     <tr><td class="num">Ctrl+1 … Ctrl+6</td><td>Usa la memoria M1 … M6</td></tr>
+    <tr><td class="num">Alt+1 … Alt+5</td><td>Va a Placas, Piezas, Baterías, Monitoreo o Fuente</td></tr>
+    <tr><td class="num">Ctrl+Tab</td><td>Siguiente pestaña del grupo (Ctrl+Mayús+Tab: anterior)</td></tr>
     <tr><td class="num">Rueda del ratón</td><td>Sobre el amperímetro: cambia la escala</td></tr>
   </table></div>
 </section>

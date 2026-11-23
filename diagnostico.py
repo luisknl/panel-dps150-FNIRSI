@@ -17,6 +17,7 @@ import os
 import re
 import sys
 import statistics
+import threading
 import time
 import tkinter as tk
 from tkinter import messagebox, ttk
@@ -114,14 +115,95 @@ class _Base:
 
 
 # ============================================================================
+def activar_bateria(dev, parar, v=4.20, ilim=0.3, pulso=3.0, intentos=3, avisar=lambda t: None):
+    """Despierta una bateria de celular nueva cuya proteccion (PCM/BMS) viene cortada (0 V en el conector).
+
+    Da pulsos de `v` voltios con el limite `ilim` y mide antes y despues con la salida apagada
+    (la DPS-150 muestra el voltaje de lo que tiene conectado con la salida apagada).
+    Se usa 4.20 V tambien para las de alto voltaje (4.35/4.40 V): basta para despertarlas y no las sobrecarga.
+    Devuelve (texto, color, detalle). No restaura la fuente: eso lo hace quien llama.
+    """
+    def medir_apagada(espera):
+        dev.salida(False)
+        r = dev.medir_estable(espera, parar)
+        return (r or dev.lectura()).get("vout", 0.0) or 0.0
+
+    v0 = medir_apagada(1.0)
+    if v0 >= 2.5:
+        estado = (f"La batería ya marca {v0:.2f} V: está activa, no hace falta activarla.", VERDE,
+                  "Si el celular igual no enciende, la falla no es de la batería dormida.")
+        if v0 > v + 0.1:
+            estado = (f"⚠ La batería marca {v0:.2f} V", NARANJA,
+                      "Más que un pulso de 4.20 V: probablemente es de alto voltaje (4.35/4.40 V) y ya está activa.")
+        return estado
+    dev.fijar_proteccion("ovp", min(4.6, v + 0.25))
+    dev.fijar_proteccion("ocp", min(5.2, ilim + 0.15))
+    dev.fijar_corriente(ilim)
+    dev.fijar_voltaje(v)
+    acepto = False                       # en algun pulso entro corriente
+    for n in range(1, intentos + 1):
+        if parar.is_set():
+            return "Activación detenida", GRIS, ""
+        avisar(f"Pulso {n} de {intentos}: {v:.2f} V con límite de {_ma(ilim)}…")
+        dev.salida(True)
+        t0, marca, muestras = time.monotonic(), None, []
+        while time.monotonic() - t0 < pulso + 0.8 and not parar.is_set():
+            if dev.marca() != marca:
+                marca = dev.marca()
+                e = dev.lectura()
+                if time.monotonic() - t0 > 0.8:            # la salida tarda ~0.8 s en estabilizarse
+                    muestras.append((e.get("vout", 0.0), e.get("iout", 0.0), e.get("modo")))
+                    vv, ii = muestras[-1][:2]
+                    if ii >= 0.9 * ilim and vv < 1.0:      # corriente al limite con voltaje casi 0: corto
+                        dev.salida(False)
+                        return (f"✗ CORTO: {_ma(ii)} con solo {vv:.2f} V", ROJO,
+                                "La batería (o lo que tocan las puntas) está en corto. No la instales. "
+                                "Revisa que no estés tocando dos pines juntos.")
+                if e.get("proteccion"):
+                    dev.salida(False)
+                    return (f"✗ Saltó la protección {e['proteccion']} de la fuente", ROJO,
+                            "La batería pidió más de lo normal o subió el voltaje. No la instales.")
+            time.sleep(0.03)
+        con_i = [s for s in muestras if s[1] >= 0.02]
+        if muestras and len(con_i) >= max(1, len(muestras) // 2):
+            acepto = True
+        v1 = medir_apagada(1.5)
+        avisar(f"Pulso {n}: después marca {v1:.2f} V")
+        if v1 >= 2.5 and acepto:
+            i_med = statistics.median(s[1] for s in con_i)
+            if v1 < 3.0:
+                return (f"⚠ Despertó, pero está muy baja: {v1:.2f} V", NARANJA,
+                        f"Aceptó {_ma(i_med)} en el pulso {n}. Cárgala antes de instalarla (Cargador, Li-ion, "
+                        "0.1C) y vigílala: una celda tan descargada puede estar dañada.")
+            pct = max(0, min(100, round((v1 - 3.3) / (4.2 - 3.3) * 100)))
+            return (f"✓ Batería activada: {v1:.2f} V", VERDE,
+                    f"Despertó en el pulso {n} (aceptó {_ma(i_med)}). Carga aproximada {pct} %. "
+                    "Ya la puedes instalar." + (" Está baja: cárgala en el celular." if v1 < 3.6 else ""))
+        if v1 >= 2.5 and not acepto:
+            return (f"? Marca {v1:.2f} V, pero no entró corriente", AMBAR,
+                    "No se puede confirmar: o ya estaba llena, o lo que se ve es la carga que quedó en la "
+                    "salida de la fuente. Mídela con el multímetro sin las puntas de la fuente.")
+        time.sleep(1.0)
+    if acepto:
+        return ("✗ Acepta corriente pero no despierta", ROJO,
+                f"Entró corriente en los pulsos, pero después sigue en {v1:.2f} V: su protección vuelve a cortar. "
+                "Las celdas están demasiado descargadas o la protección está dañada. Reclámala.")
+    return ("✗ No despertó", ROJO,
+            f"Después de {intentos} pulsos no entró corriente y sigue en {v1:.2f} V. Revisa que tocas + y − "
+            "(los pines de los extremos, no los del centro) con buen contacto. Si está bien, la batería está "
+            "defectuosa: reclámala.")
+
+
 class Celular(_Base):
     """Diagnostico de celular alimentado por el conector de bateria."""
 
     def __init__(self, panel, nb):
         super().__init__(panel, nb, "Celular")
         self.ola, self.t0, self.grabando, self.encendido = [], 0.0, False, False
-        izq = ttk.LabelFrame(self.f, text="Alimentación por el conector de batería", padding=8)
-        izq.pack(side="left", fill="y")
+        col = ttk.Frame(self.f)
+        col.pack(side="left", fill="y")
+        izq = ttk.LabelFrame(col, text="Alimentación por el conector de batería", padding=8)
+        izq.pack(fill="x")
         self.e = {}
         for n, (k, t, v) in enumerate((("v", "Voltaje de batería (V)", "4.20"),
                                        ("i", "Límite de corriente (A)", "1.0"),
@@ -142,14 +224,16 @@ class Celular(_Base):
         self.btn_off = ttk.Button(fila, text="Apagar", command=self.apagar)
         self.btn_off.pack(side="left", padx=4)
         ttk.Label(izq, foreground=GRIS, justify="left", wraplength=int(270 * self.esc), text=(
-            "Conecta la fuente al conector de batería del celular (cable de arranque DC), "
-            "respetando + y −. El voltaje nunca pasa de 4.45 V y la fuente queda con "
-            "protección de sobrevoltaje.\n\n1) Mide la fuga sin tocar nada. 2) Pulsa «Grabar» "
-            "y presiona Power en el celular.")).grid(row=7, column=0, columnspan=2, sticky="w", pady=(8, 0))
+            "Fuente al conector de batería del celular (cable de arranque DC), respetando + y −. "
+            "Nunca pasa de 4.45 V. 1) Mide la fuga sin tocar nada. 2) Pulsa «Grabar» y presiona Power.")) \
+            .grid(row=7, column=0, columnspan=2, sticky="w", pady=(8, 0))
         panel.controles += [self.btn_on, self.btn_ola, self.btn_off]
 
         mid = ttk.Frame(self.f)
         mid.pack(side="left", fill="y", padx=(12, 0))
+        ttk.Button(mid, text="¿Batería nueva en 0 V? Activarla →",
+                   command=lambda: panel.ir_a(panel.activar_bat.f)).pack(side="bottom", fill="x", pady=(8, 0))
+
         tk.Label(mid, text="Corriente", font=("Segoe UI", 10), fg=GRIS).pack(anchor="w")
         self.lbl_i = tk.Label(mid, text="-- mA", font=("Consolas", 30, "bold"), fg=NARANJA)
         self.lbl_i.pack(anchor="w")
@@ -319,6 +403,97 @@ class Celular(_Base):
             self.p.root.after(250, self._refrescar)
 
 
+class ActivarBateria(_Base):
+    """Pestaña Baterías › Activar batería: despierta baterías de 1 celda con la protección cortada (0 V)."""
+
+    def __init__(self, panel, nb):
+        super().__init__(panel, nb, "Activar batería")
+        self.e = {}
+        izq = ttk.LabelFrame(self.f, text="Batería nueva que marca 0 V", padding=10)
+        izq.pack(side="left", fill="y")
+        for n, (k, t, v) in enumerate((("ai", "Límite de corriente (A)", "0.3"), ("ap", "Duración del pulso (s)", "3"))):
+            ttk.Label(izq, text=t).grid(row=n, column=0, sticky="w", pady=2)
+            e = ttk.Entry(izq, width=7, font=("Consolas", 11))
+            e.insert(0, v)
+            e.grid(row=n, column=1, sticky="w", padx=6)
+            self.e[k] = e
+        self.btn_act = ttk.Button(izq, text="Activar batería (4.20 V)", style="Grande.TButton", command=self.activar)
+        self.btn_act.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(10, 6))
+        panel.controles.append(self.btn_act)
+        ttk.Label(izq, foreground=GRIS, justify="left", wraplength=int(300 * self.esc), text=(
+            "Para baterías de 1 celda: celular, tablet, 18650 protegida, reloj, audífonos.\n\n"
+            "1. Saca la batería del equipo.\n"
+            "2. Punta roja en + y negra en − del conector flex: los pines de los EXTREMOS. No toques los del "
+            "centro (datos y sensor de temperatura).\n"
+            "3. Sujétalas firmes (mejor con pinzas) y pulsa el botón.\n\n"
+            "Da hasta 3 pulsos de 4.20 V y mide antes y después con la salida apagada. 4.20 V sirve también "
+            "para las de alto voltaje (4.35/4.40 V).\n\n"
+            "Audífonos y relojes: baja el límite a 0.1 A.")).grid(row=3, column=0, columnspan=2, sticky="w")
+        der = ttk.Frame(self.f)
+        der.pack(side="left", fill="both", expand=True, padx=(16, 0))
+        self._veredicto(der)
+        self.lbl_ver.config(wraplength=int(520 * self.esc))
+        self.lbl_det.config(wraplength=int(520 * self.esc))
+        ttk.Label(der, text="Pasos", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(14, 2))
+        self.lista = tk.Listbox(der, height=10, font=("Consolas", 10), activestyle="none")
+        self.lista.pack(fill="both", expand=True)
+
+    def _paso(self, texto):
+        self.lista.insert("end", f"{time.strftime('%H:%M:%S')}  {texto}")
+        self.lista.see("end")
+        self._ver(texto, NARANJA)
+
+    def activar(self):
+        if self.p._detener_si_corre(self.btn_act) or not self.p.dev:
+            return
+        try:
+            ilim, pulso = _num(self.e["ai"].get()), _num(self.e["ap"].get())
+            if not 0.05 <= ilim <= 0.5:
+                raise ValueError("Para activar, el límite debe estar entre 0.05 y 0.5 A (0.3 A es lo normal).")
+            if not 1 <= pulso <= 10:
+                raise ValueError("El pulso debe durar entre 1 y 10 s.")
+        except ValueError as ex:
+            return messagebox.showwarning("Activar batería", str(ex))
+        dev = self.p.dev
+        cel = getattr(self.p, "celular", None)
+        if (cel and cel.encendido) or dev.lectura().get("salida"):
+            if not messagebox.askokcancel("Activar batería", "La salida está encendida. Voy a apagarla primero."):
+                return
+            if cel and cel.encendido:
+                cel._restaurar(cel.previo)
+                cel.encendido = False
+        if not messagebox.askokcancel("Activar batería", (
+                f"Se darán pulsos de 4.20 V con límite de {_ma(ilim)} a la batería, {pulso:g} s cada uno.\n\n"
+                "• La batería debe estar FUERA del celular.\n"
+                "• Punta roja en + y negra en − del conector, firmes (mejor con pinzas).\n"
+                "• No toques los pines del centro (datos y sensor de temperatura).\n\n¿Empezar?")):
+            return
+        previo = self._previo()
+        sim = dev.puerto == "SIM"
+        if sim:      # en el simulador: una bateria nueva dormida
+            from dps150_sim import BateriaSim
+            modelo_prev, dev._ser.modelo = dev._ser.modelo, BateriaSim("liion", 1, 3000, soc=0.55, dormida=True)
+        self.lista.delete(0, "end")
+        self._paso("Midiendo la batería con la salida apagada…")
+
+        def trabajo():
+            parar = self.p.parar_trabajo
+            try:
+                texto, color, det = activar_bateria(dev, parar, 4.20, ilim, pulso,
+                                                    avisar=lambda t: self._llamar(lambda: self._paso(t)))
+            except Exception as ex:
+                texto, color, det = f"Error: {ex}", ROJO, ""
+            finally:
+                self._restaurar(previo)
+                if sim and dev._ser is not None:
+                    dev._ser.modelo = modelo_prev
+            self._llamar(lambda: (self.lista.insert("end", f"{time.strftime('%H:%M:%S')}  → {texto}"),
+                                  self._ver(texto, color, det)))
+            self.p.ui_q.put(("fin_trabajo", self.btn_act))
+
+        self.p._lanzar(trabajo, self.btn_act, "Detener")
+
+
 def analizar_ola(ola, ilim):
     """Veredicto de la ola de arranque. Devuelve (texto, color, detalle)."""
     corr = [i for _, i in ola]
@@ -407,8 +582,9 @@ class Inyeccion(_Base):
         self.btn_sig.pack(side="left")
         self.btn_ok = ttk.Button(fila, text="¡Lo encontré! (apagar)", command=self._encontrado)
         self.btn_ok.pack(side="left", padx=4)
-        lat = ttk.LabelFrame(izq, text="Latido", padding=6)
-        lat.grid(row=8, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+        mid = ttk.Frame(self.f)
+        lat = ttk.LabelFrame(mid, text="Latido: cuando algo caliente, haz que «parpadee»", padding=6)
+        lat.pack(side="bottom", anchor="w", pady=(8, 0))
         ttk.Label(lat, text="Periodo (s)").grid(row=0, column=0, sticky="w")
         self.cb_periodo = ttk.Combobox(lat, width=5, state="readonly", values=["1", "1.5", "2", "3", "4"])
         self.cb_periodo.set("2")
@@ -423,16 +599,15 @@ class Inyeccion(_Base):
         self.e_tlat.grid(row=1, column=1, sticky="w", padx=4, pady=(4, 0))
         self.btn_lat = ttk.Button(lat, text="♥ Latir en este escalón", command=self._latir)
         self.btn_lat.grid(row=2, column=0, columnspan=4, sticky="ew", pady=(6, 0))
-        ttk.Label(izq, foreground=GRIS, justify="left", wraplength=int(300 * self.esc), text=(
+        ttk.Label(mid, foreground=GRIS, justify="left", wraplength=int(420 * self.esc), text=(
             "+ al riel en corto, − a GND, placa sin otra alimentación. En cada escalón el voltaje sube "
             "despacio hasta que pasa esa corriente, sin pasar nunca del voltaje máximo del riel. "
             "Si nada se calienta, pasa al siguiente escalón. Cuando algo brille, pulsa «Latir»: "
-            "la corriente pulsa y el componente parpadea en la cámara.")).grid(row=9, column=0, columnspan=2,
-                                                                                 sticky="w", pady=(8, 0))
+            "la corriente pulsa y el componente parpadea en la cámara.")).pack(side="bottom", anchor="w",
+                                                                                 pady=(8, 0))
         self.latir = False
         panel.controles += [self.btn, self.btn_sig, self.btn_ok, self.btn_lat]
 
-        mid = ttk.Frame(self.f)
         mid.pack(side="left", fill="both", expand=True, padx=(12, 0))
         self.lbl_esc = tk.Label(mid, text="", font=("Segoe UI", 12, "bold"), fg=GRIS, anchor="w")
         self.lbl_esc.pack(anchor="w")
@@ -651,10 +826,176 @@ class Laptop(_Base):
         panel.controles += [self.btn]
         mid = ttk.Frame(self.f)
         mid.pack(side="left", fill="y", padx=(12, 0))
+        arr = ttk.LabelFrame(mid, text="Arranque por el jack DC: presiona Power", padding=8)
+        arr.pack(side="bottom", fill="x", pady=(8, 0))
+        for n, (k, t, v) in enumerate((("av", "Voltaje del cargador (V)", "19"), ("ai", "Límite de corriente (A)", "3.0"),
+                                       ("at", "Grabar (s)", "60"))):
+            ttk.Label(arr, text=t).grid(row=n, column=0, sticky="w", pady=2)
+            e = ttk.Entry(arr, width=7, font=("Consolas", 11))
+            e.insert(0, v)
+            e.grid(row=n, column=1, sticky="w")
+            self.e[k] = e
+        self.btn_arr = ttk.Button(arr, text="Encender y grabar arranque", command=self.arranque)
+        self.btn_arr.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(6, 0))
+        ttk.Button(arr, text="Guardar como arranque bueno", command=self.guardar_arranque) \
+            .grid(row=4, column=0, columnspan=2, sticky="ew", pady=(4, 0))
+        panel.controles.append(self.btn_arr)
+        self.ola = []
         self._veredicto(mid)
+        self.lbl_det.config(font=("Segoe UI", 9))      # el detalle del arranque es largo: que quepa sobre el recuadro
         self.graf = self.Grafica(self.f)
         self.graf.pack(side="left", fill="both", expand=True, padx=(12, 0))
         self.p.root.after(1500, self._limite)
+
+    # --- arranque por el jack DC -------------------------------------------
+    def arranque(self):
+        if self.p._detener_si_corre(self.btn_arr) or not self.p.dev:
+            return
+        dev = self.p.dev
+        try:
+            v, ilim, dur = _num(self.e["av"].get()), _num(self.e["ai"].get()), _num(self.e["at"].get())
+            vmax, imax = dev.limites()
+            if not 5 <= v <= 30:
+                raise ValueError("El voltaje del cargador debe estar entre 5 y 30 V (lo normal: 19 o 20 V).")
+            if v > vmax + 0.05:
+                raise ValueError(f"Tu fuente solo llega a {vmax:.1f} V con el adaptador que tiene. Para {v:g} V "
+                                 f"conecta al USB-C un adaptador de más de {v + 0.5:g} V (cargador USB-C de 20 V).")
+            if not 0.1 <= ilim <= imax:
+                raise ValueError(f"Límite entre 0.1 y {imax:.1f} A (3 A suele sobrar para arrancar).")
+            if v * ilim > 150:
+                raise ValueError(f"{v:g} V × {ilim:g} A pasa de los 150 W de la fuente: baja el límite.")
+            if not 10 <= dur <= 180:
+                raise ValueError("Graba entre 10 y 180 s (las laptops tardan de 20 a 60 s en hacer POST).")
+        except ValueError as ex:
+            return messagebox.showwarning("Laptop", str(ex))
+        if not messagebox.askokcancel("Laptop", (
+                f"Se darán {v:g} V con límite de {_ma(ilim)} por el jack DC.\n\n"
+                "• Quita la batería de la laptop.\n• Revisa la polaridad: + al centro del jack en la mayoría.\n"
+                "• Usa el voltaje de SU cargador (dice OUTPUT en la etiqueta).\n\n¿Encender?")):
+            return
+        previo = self._previo()
+        self.ola = []
+        sim = dev.puerto == "SIM"
+        if sim:      # en el simulador: una laptop que arranca normal
+            from dps150_sim import LaptopSim
+            modelo_prev, dev._ser.modelo = dev._ser.modelo, LaptopSim("normal")
+        self._ver("Subiendo el voltaje…", GRIS)
+
+        def trabajo():
+            parar = self.p.parar_trabajo
+            antes = dev.rapido
+            resultado = None
+            try:
+                dev.salida(False)
+                dev.fijar_proteccion("ovp", min(31.0, v + 1.0))
+                dev.fijar_proteccion("ocp", min(imax + 0.1, ilim + 0.3))
+                dev.fijar_corriente(ilim)
+                dev.fijar_voltaje(min(5.0, v))
+                dev.salida(True)
+                # subida por pasos: si a voltaje bajo ya llega al limite, es un corto en la entrada
+                vs = 5.0
+                while not parar.is_set():
+                    e = dev.medir_estable(0.4, parar)
+                    if e is None:
+                        break
+                    if not e.get("salida"):
+                        resultado = (f"✗ La fuente cortó por {e.get('proteccion') or 'protección'} al subir", ROJO,
+                                     "La placa pidió demasiado antes de presionar Power: corto en la entrada. "
+                                     "Usa «Medir curva» con límite bajo e Inyección.")
+                        break
+                    if e.get("iout", 0.0) >= 0.9 * ilim:
+                        resultado = (f"✗ CORTO en la entrada: llega a {_ma(ilim)} con {e.get('vout', 0):.1f} V", ROJO,
+                                     "Antes de presionar Power ya consume todo el límite. Busca el corto en la línea "
+                                     "principal con «Medir curva» (límite bajo) e Inyección.")
+                        break
+                    if vs >= v:
+                        break
+                    vs = min(v, vs + 3.0)
+                    dev.fijar_voltaje(vs)
+                if resultado is None and not parar.is_set():
+                    e = dev.medir_estable(1.0, parar)
+                    muestras, fin, marca = [], time.monotonic() + 3, None
+                    while time.monotonic() < fin and not parar.is_set():
+                        if dev.marca() != marca:
+                            marca = dev.marca()
+                            r = dev.lectura()
+                            muestras.append(r.get("vout", 0.0) * r.get("iout", 0.0))
+                        time.sleep(0.05)
+                    p_rep = statistics.median(muestras) if muestras else 0.0
+                    txt, col = reposo_laptop(p_rep, v)
+                    self._llamar(lambda: self._ver("● PRESIONA POWER AHORA", ROJO, txt))
+                    dev.rapido = True
+                    t0 = visto = time.monotonic()
+                    if sim:
+                        modelo = dev._ser.modelo
+                        threading.Timer(1.5, modelo.presionar).start()   # en el simulador, "presionar" solo
+                    ult_pinta = 0.0
+                    while time.monotonic() - t0 < dur and not parar.is_set():
+                        for tt, vv, ii, _ in list(dev.historial)[-60:]:
+                            if tt > visto:
+                                self.ola.append((tt - t0, vv, ii))
+                                visto = tt
+                        r = dev.lectura()
+                        if not r.get("salida"):
+                            break
+                        if time.monotonic() - ult_pinta > 0.5:
+                            ult_pinta = time.monotonic()
+                            seg = int(dur - (ult_pinta - t0))
+                            self._llamar(lambda s=seg, rr=r: (self._pintar_ola(), self.lbl_det.config(
+                                text=f"{txt}\nAhora: {_w(rr.get('vout', 0) * rr.get('iout', 0), v)} · "
+                                     f"faltan {s} s")))
+                        time.sleep(0.03)
+                    corte = None if dev.lectura().get("salida") else (dev.lectura().get("proteccion") or "")
+                    resultado = analizar_arranque_laptop(list(self.ola), p_rep, ilim)
+                    if corte:
+                        resultado = (f"✗ La fuente cortó por {corte} durante el arranque", ROJO,
+                                     "Pidió más de lo programado de golpe: un riel en corto al encender." +
+                                     resultado[2][resultado[2].find("\n\n"):])
+                    elif parar.is_set():
+                        resultado = ("Grabación detenida · " + resultado[0], resultado[1], resultado[2])
+            except Exception as ex:
+                resultado = (f"Error: {ex}", ROJO, "")
+            finally:
+                dev.rapido = antes
+                self._restaurar(previo)
+                if sim and dev._ser is not None:
+                    dev._ser.modelo = modelo_prev
+                if resultado is None:
+                    resultado = ("Detenido", GRIS, "")
+                self._llamar(lambda: (self._pintar_ola(), self._ver_arranque(resultado)))
+                self.p.ui_q.put(("fin_trabajo", self.btn_arr))
+
+        self.p._lanzar(trabajo, self.btn_arr, "Detener")
+
+    def _ver_arranque(self, res):
+        texto, color, det = res
+        ref = leer_ref("laptop_arranque", self.cb_mod.get()) if self.cb_mod.get().strip() else None
+        if ref and self.ola:
+            pb = max(v * i for _, v, i in ref["ola"]) or 1e-6
+            pm = max(v * i for _, v, i in self.ola)
+            det += (f"\n\nContra el arranque bueno de «{self.cb_mod.get()}»: pico {pm:.1f} W contra {pb:.1f} W "
+                    f"({pm / pb * 100:.0f} %).")
+        self._ver(texto, color, det)
+
+    def _pintar_ola(self):
+        series = []
+        ref = leer_ref("laptop_arranque", self.cb_mod.get()) if self.cb_mod.get().strip() else None
+        if ref:
+            series.append(([(t, v * i) for t, v, i in ref["ola"]], "#9aa0a6", 0))
+        series.append(([(t, v * i) for t, v, i in self.ola], NARANJA, 0))
+        fin = max([t for s, _, _ in series for t, _ in s] + [10])
+        self.graf.poner(series, "Tiempo desde «Presiona Power» (s)", ("Potencia (W)", ""), (NARANJA, "black"),
+                        rango_x=(0, fin))
+
+    def guardar_arranque(self):
+        modelo = self.cb_mod.get().strip()
+        if not modelo:
+            return messagebox.showinfo("Laptop", "Escribe el modelo (arriba, en «Modelo») antes de guardar.")
+        if len(self.ola) < 10:
+            return messagebox.showinfo("Laptop", "Primero graba el arranque de una laptop BUENA.")
+        guardar_ref("laptop_arranque", modelo, {"ola": self.ola, "fecha": time.strftime("%Y-%m-%d %H:%M")})
+        self._pintar_ola()
+        self.lbl_det.config(text=f"Guardado como arranque bueno de «{modelo}». Se dibuja en gris para comparar.")
 
     def _limite(self):
         if self.p.dev:
@@ -753,6 +1094,92 @@ class Laptop(_Base):
         guardar_ref("laptop", modelo, {"curva": self.curva, "fecha": time.strftime("%Y-%m-%d %H:%M")})
         self._pintar()
         self.lbl_det.config(text=f"Guardada como curva buena de «{modelo}».")
+
+
+def _w(p, v):
+    return f"{p:.1f} W ({_ma(p / v) if v > 0.5 else '—'})"
+
+
+def reposo_laptop(p, v):
+    """Veredicto del consumo antes de presionar Power. Devuelve (texto, color)."""
+    if p < 0.05:
+        return f"Reposo: casi 0 ({_w(p, v)})", AMBAR
+    if p < 1.2:
+        return f"Reposo normal: {_w(p, v)} (EC y rieles de reposo vivos)", VERDE
+    if p < 6:
+        return f"Reposo ALTO: {_w(p, v)}", NARANJA
+    return f"Reposo MUY ALTO: {_w(p, v)}", ROJO
+
+
+def analizar_arranque_laptop(ola, p_reposo, ilim):
+    """ola = [(t, v, i)] desde que se pidió presionar Power. Clasifica por potencia (W) para que sirva a
+    19 o 20 V. Devuelve (texto, color, detalle)."""
+    if len(ola) < 4:
+        return "Grabación muy corta", GRIS, ""
+    v_med = statistics.median(v for _, v, _ in ola)
+    ps = [(t, v * i) for t, v, i in ola]
+    imax = max(i for _, _, i in ola)
+    pmax = max(p for _, p in ps)
+    rep_txt, _ = reposo_laptop(p_reposo, v_med)
+    pie = f"\n\n{rep_txt}. Pico {_w(pmax, v_med)}."
+    if imax >= 0.95 * ilim:
+        return (f"✗ Llega al límite de corriente ({_ma(ilim)}) al encender", ROJO,
+                "Al presionar Power se enciende un riel en corto (VCORE del CPU, GPU, RAM) o el límite es muy bajo "
+                "para esta laptop. Con 3 A suele sobrar; si sigue igual, busca el corto en los rieles con "
+                "Inyección y la cámara térmica." + pie)
+    if pmax < p_reposo + 0.3 and pmax < 1.5:
+        if p_reposo < 0.05:
+            return ("✗ No reacciona y no tiene consumo de reposo", ROJO,
+                    "La placa ni siquiera ve el adaptador. Revisa el conector DC, el fusible y los MOSFET de "
+                    "entrada, el circuito de carga (charger IC) y los rieles siempre encendidos (3V/5V ALW) que "
+                    "alimentan al EC." + pie)
+        return ("✗ No reacciona al botón Power", ROJO,
+                "Hay consumo de reposo (el EC vive), pero no arranca. Revisa el botón y su flex, la señal de "
+                "encendido hacia el EC, y el BIOS/EC (firmware dañado: reprogramarlo)." + pie)
+    # "volver al reposo" = bajar cerca del consumo de reposo y quedarse ahi al menos 0.8 s
+    # (un POST sano tambien tiene bajones, pero no hasta el reposo)
+    base = p_reposo + max(0.5, 0.1 * pmax)
+    umbral = max(3.0, 0.4 * pmax)
+    vueltas, arriba, inicios, bajo_desde = 0, False, [], None
+    for t, p in ps:
+        if p > umbral:
+            bajo_desde = None
+            if not arriba:
+                arriba = True
+                inicios.append(t)
+        elif arriba and p < base:
+            bajo_desde = t if bajo_desde is None else bajo_desde
+            if t - bajo_desde >= 0.8:
+                vueltas, arriba, bajo_desde = vueltas + 1, False, None
+        else:
+            bajo_desde = None
+    reaccion = next((t for t, p in ps if p > p_reposo + 0.5), None)
+    if reaccion is not None and reaccion > 8:
+        pie += f" Tardó {reaccion:.0f} s en reaccionar (¿presionaste Power al momento?)."
+    cola = [p for t, p in ps if t >= ps[-1][0] - 5]
+    final = statistics.median(cola)
+    var = statistics.pstdev(cola) / final if final > 0.1 else 0
+    if vueltas >= 2:
+        periodo = (inicios[-1] - inicios[0]) / (len(inicios) - 1) if len(inicios) >= 2 else 0
+        return (f"✗ REINICIA EN BUCLE: {vueltas} vueltas" + (f", cada ~{periodo:.0f} s" if periodo else ""), ROJO,
+                f"Sube a ~{pmax:.0f} W y vuelve al reposo una y otra vez. Típico de RAM (prueba otro módulo o "
+                "limpia los contactos), BIOS dañado, o un VRM que se protege y reinicia." + pie)
+    if vueltas == 1 and final < base:
+        apaga = next((t for t, p in ps if inicios and t > inicios[0] and p < base), 0)
+        return (f"✗ Arranca y se apaga a los ~{apaga:.0f} s", ROJO,
+                f"Sube a ~{pmax:.0f} W y vuelve al reposo una sola vez. Revisa protección por temperatura "
+                "(ventilador, pasta térmica), un VRM que se protege, el BIOS o el circuito de carga." + pie)
+    if final < 6 and var < 0.05:
+        return (f"✗ SE QUEDA EN BAJO: ~{_w(final, v_med)}", ROJO,
+                "Arrancan los rieles de reposo (S3/S5) pero el CPU no recibe su voltaje. Revisa la secuencia de "
+                "encendido (RSMRST#, SLP_S3#/S4#, PWROK), el VRM del CPU (VCORE) y el BIOS." + pie)
+    if var < 0.03:
+        return (f"✗ SE QUEDA FIJA en ~{_w(final, v_med)}", ROJO,
+                "El CPU tiene energía pero no hace POST (un arranque sano fluctúa). Revisa RAM, BIOS, CPU o "
+                "chipset. Anota el valor: es la pista para buscar el caso de ese modelo." + pie)
+    return (f"✓ Fluctúa: arranque normal (pico {pmax:.0f} W)", VERDE,
+            "La potencia sube y varía como en un POST sano. Si no da imagen, revisa la pantalla y su flex "
+            "(eDP/LVDS), la retroiluminación (fusible, voltaje del backlight) o la GPU." + pie)
 
 
 def analizar_curva(curva, ilim):

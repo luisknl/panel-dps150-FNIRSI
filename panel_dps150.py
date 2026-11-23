@@ -6,6 +6,7 @@
   - Registro a CSV
   - Secuencias programadas (pasos V / I / segundos, con repeticiones)
   - Barrido I-V (curva corriente contra voltaje, util para revisar placas)
+  - Cargador de baterias (Li-ion, LiFePO4, plomo, NiMH) con corte automatico e historial
 
 Ejecutar:  python panel_dps150.py          (fuente real)
            python panel_dps150.py --sim    (fuente simulada, sin equipo)
@@ -480,6 +481,34 @@ class Medidor(tk.Canvas):
 
 
 # --------------------------------------------------------------------------
+class Conmutador(ttk.Frame):
+    """Una pestaña con varios modos (botones arriba). Se usa como un Notebook: add(frame, text=...)."""
+
+    def __init__(self, master, textos=None):
+        super().__init__(master, padding=(4, 4, 4, 0))
+        self.textos = textos or {}
+        self.barra = ttk.Frame(self)
+        self.barra.pack(fill="x", padx=4)
+        self.v = tk.StringVar()
+        self.hijos = {}
+
+    def add(self, hijo, text=""):
+        nombre = self.textos.get(text, text)
+        b = ttk.Radiobutton(self.barra, text=nombre, value=str(hijo), variable=self.v,
+                            style="Modo.Toolbutton", command=lambda: self.mostrar(hijo))
+        b.pack(side="left", padx=(0, 4), pady=(0, 4))
+        self.hijos[str(hijo)] = hijo
+        if len(self.hijos) == 1:
+            self.mostrar(hijo)
+
+    def mostrar(self, hijo):
+        for h in self.hijos.values():
+            h.pack_forget()
+        hijo.pack(fill="both", expand=True)
+        self.v.set(str(hijo))
+
+
+# --------------------------------------------------------------------------
 class Panel:
     def __init__(self, root, simulado=False):
         self.root = root
@@ -508,6 +537,7 @@ class Panel:
         except tk.TclError:
             pass
         estilo.configure("Grande.TButton", font=("Segoe UI", 13, "bold"), padding=8)
+        self._estilos_grupos(estilo, False)
 
         self._armar_conexion()
         self._armar_medidas_y_control()
@@ -535,6 +565,8 @@ class Panel:
         ttk.Button(f, text="Guía rápida", command=self.abrir_guia).pack(side="right", padx=(0, 6))
         self.btn_flot = ttk.Button(f, text="Lecturas flotantes", command=self.alternar_flotante)
         self.btn_flot.pack(side="right", padx=(0, 6))
+        self.btn_csv = ttk.Button(f, text="● REC", width=10, command=self.alternar_csv)
+        self.btn_csv.pack(side="right", padx=(0, 12))
         self.flotante = None
         self.btn_conectar = ttk.Button(f, text="Conectar", command=self.conectar_o_desconectar)
         self.btn_conectar.pack(side="left", padx=4)
@@ -597,13 +629,21 @@ class Panel:
         self.btn_salida = ttk.Button(ctl, text="Encender salida", style="Grande.TButton",
                                      command=self.alternar_salida)
         self.btn_salida.grid(row=3, column=0, columnspan=3, sticky="ew")
-        ttk.Label(ctl, text="Atajos: Enter aplica el campo · F5 enciende/apaga\n"
-                            "Ctrl+1 … Ctrl+6 usan las memorias M1 … M6",
-                  foreground=GRIS, justify="left").grid(row=4, column=0, columnspan=3, sticky="w", pady=(6, 0))
+        mem = ttk.Frame(ctl)
+        mem.grid(row=4, column=0, columnspan=3, sticky="ew", pady=(8, 0))
+        self.btn_mem = []
+        for n in range(1, 7):
+            b = ttk.Button(mem, text=f"M{n}", width=10, command=lambda n=n: self._atajo_memoria(n))
+            b.grid(row=(n - 1) // 3, column=(n - 1) % 3, sticky="ew", padx=1, pady=1)
+            mem.columnconfigure((n - 1) % 3, weight=1)
+            self.btn_mem.append(b)
+        self.lbl_prot_linea = ttk.Label(ctl, text="OVP -- · OCP -- · OPP --", foreground=GRIS, cursor="hand2")
+        self.lbl_prot_linea.grid(row=5, column=0, columnspan=3, sticky="w", pady=(6, 0))
+        self.lbl_prot_linea.bind("<Button-1>", lambda e: self.ir_a(self.tab_prot))
         self.root.bind("<F5>", lambda e: self.alternar_salida())
         for n in range(1, 7):
             self.root.bind(f"<Control-Key-{n}>", lambda e, n=n: self._atajo_memoria(n))
-        self.controles = [self.e_v, self.e_i, self.btn_salida]
+        self.controles = [self.e_v, self.e_i, self.btn_salida] + self.btn_mem
 
     def _escala_medidor(self):
         t = self.cb_escala.get()
@@ -636,13 +676,35 @@ class Panel:
         self.__dict__.setdefault("botones_campo", []).append(b)
         return e
 
-    def _armar_pestanas(self):
-        nb = ttk.Notebook(self.root)
-        nb.pack(fill="both", expand=True, padx=10, pady=10)
+    GRUPOS = [("placas", "Placas", "celular · laptop · cortos"),
+              ("piezas", "Piezas", "probador · LEDs"),
+              ("baterias", "Baterías", "cargar · activar · historial"),
+              ("monitoreo", "Monitoreo", "gráfica · secuencia"),
+              ("fuente", "Fuente", "protecciones · memorias")]
 
-        # Grafica
-        g = ttk.Frame(nb, padding=6)
-        nb.add(g, text="Gráfica")
+    def _armar_pestanas(self):
+        cuerpo = ttk.Frame(self.root)
+        cuerpo.pack(fill="both", expand=True, padx=10, pady=10)
+        lado = ttk.Frame(cuerpo)
+        lado.pack(side="left", fill="y", padx=(0, 8))
+        pila = ttk.Frame(cuerpo)
+        pila.pack(side="left", fill="both", expand=True)
+        self.grupos, self.btn_grupo, self.v_grupo = {}, {}, tk.StringVar()
+        for k, titulo, sub in self.GRUPOS:
+            self.grupos[k] = nb = ttk.Notebook(pila)
+            nb.bind("<<NotebookTabChanged>>", lambda e: self._recordar_pestana())
+            texto = f"{titulo}\n{sub}"
+            b = ttk.Radiobutton(lado, text=texto, value=k, variable=self.v_grupo,
+                                style="Grupo.Toolbutton", command=lambda k=k: self.mostrar_grupo(k))
+            b.pack(fill="x", pady=(0, 4))
+            self.btn_grupo[k] = (b, texto)
+        ttk.Label(lado, text="Alt+1 … Alt+5\ncambian de grupo\nCtrl+Tab: pestaña", foreground=GRIS,
+                  justify="left").pack(side="bottom", anchor="w")
+        G = self.grupos
+
+        # Monitoreo · Gráfica (va primero: las otras pestañas copian su clase de gráfica)
+        g = ttk.Frame(G["monitoreo"], padding=6)
+        G["monitoreo"].add(g, text="Gráfica")
         barra = ttk.Frame(g)
         barra.pack(fill="x")
         ttk.Label(barra, text="Ventana:").pack(side="left")
@@ -656,10 +718,35 @@ class Panel:
                         command=self._rapido).pack(side="left", padx=(12, 0))
         self.graf = Grafica(g)
         self.graf.pack(fill="both", expand=True, pady=(6, 0))
+        self._armar_secuencia(G["monitoreo"])
 
-        # Protecciones
-        pr = ttk.Frame(nb, padding=10)
-        nb.add(pr, text="Protecciones")
+        # Placas
+        from diagnostico import ActivarBateria, Celular, Inyeccion, Laptop
+        self.celular = Celular(self, G["placas"])
+        self.laptop = Laptop(self, G["placas"])
+        self.cortos = Conmutador(G["placas"], {"Buscar corto": "Medir resistencia (mΩ)",
+                                               "Inyección": "Inyección escalonada"})
+        G["placas"].add(self.cortos, text="Cortos")
+        self._armar_corto(self.cortos)
+        self.inyeccion = Inyeccion(self, self.cortos)
+        from barrido import BarridoIV
+        self.barrido_iv = BarridoIV(self, G["placas"])
+
+        # Piezas
+        from probador import Probador, ProbadorLED
+        self.probador = Probador(self, G["piezas"])
+        self.probador_led = ProbadorLED(self, G["piezas"])
+
+        # Baterías
+        from cargador import Cargador, HistorialBaterias
+        self.cargador = Cargador(self, G["baterias"])
+        self.activar_bat = ActivarBateria(self, G["baterias"])
+        self.historial_bat = HistorialBaterias(self, G["baterias"])
+
+        # Fuente
+        pr = ttk.Frame(G["fuente"], padding=10)
+        G["fuente"].add(pr, text="Protecciones")
+        self.tab_prot = pr
         self.e_prot = {}
         filas = [("ovp", "OVP  sobrevoltaje (V)"), ("ocp", "OCP  sobrecorriente (A)"),
                  ("opp", "OPP  sobrepotencia (W)"), ("otp", "OTP  sobretemperatura (°C)"),
@@ -679,37 +766,172 @@ class Panel:
             "Si una protección se dispara, la fuente apaga la salida y aquí se ve en rojo.\n"
             "Para revisar placas conviene un OCP bajo, por ejemplo 0.5 A.")) \
             .grid(row=len(filas) + 1, column=0, columnspan=3, sticky="w", pady=(10, 0))
+        self._armar_memorias(G["fuente"])
+        self._armar_ajustes(G["fuente"])
 
-        self._armar_memorias(nb)
-        self._armar_corto(nb)
-        from probador import Probador, ProbadorLED
-        self.probador = Probador(self, nb)
-        self.probador_led = ProbadorLED(self, nb)
-        from diagnostico import Celular, Inyeccion, Laptop
-        self.celular = Celular(self, nb)
-        self.inyeccion = Inyeccion(self, nb)
-        self.laptop = Laptop(self, nb)
+        # abrir donde se quedó la última vez
+        cfg = self._leer_config()
+        grupo = cfg.get("grupo") if cfg.get("grupo") in G else "placas"
+        self.mostrar_grupo(grupo, recordar=False)
+        nb = G[grupo]
+        for t in nb.tabs():
+            if nb.tab(t, "text") == cfg.get("pestana"):
+                nb.select(t)
+        for n, (k, _, _) in enumerate(self.GRUPOS, 1):
+            self.root.bind(f"<Alt-Key-{n}>", lambda e, k=k: self.mostrar_grupo(k))
+        self.root.bind("<Control-Tab>", lambda e: self._ciclar(1))
+        for sec in ("<Control-Shift-Tab>", "<Control-ISO_Left_Tab>"):
+            try:
+                self.root.bind(sec, lambda e: self._ciclar(-1))
+            except tk.TclError:
+                pass
 
-        self._armar_secuencia(nb)
+    # ------------------------------------------------- grupos y pestañas --
+    def mostrar_grupo(self, k, recordar=True):
+        for nb in self.grupos.values():
+            nb.pack_forget()
+        self.grupos[k].pack(fill="both", expand=True)
+        self.v_grupo.set(k)
+        if recordar:
+            self._recordar_pestana()
+        return "break"
 
-        from barrido import BarridoIV
-        self.barrido_iv = BarridoIV(self, nb)
+    def _recordar_pestana(self):
+        k = self.v_grupo.get()
+        nb = self.grupos.get(k)
+        if nb is None or not nb.tabs():
+            return
+        try:
+            texto = nb.tab(nb.select(), "text").lstrip("● ")
+        except tk.TclError:
+            return
+        self._guardar_config(grupo=k, pestana=texto)
 
-        # Registro CSV
-        rg = ttk.Frame(nb, padding=10)
-        nb.add(rg, text="Registro CSV")
-        ttk.Label(rg, text="Cada:").grid(row=0, column=0, sticky="w")
+    def _ciclar(self, d):
+        nb = self.grupos[self.v_grupo.get()]
+        tabs = nb.tabs()
+        if tabs:
+            nb.select(tabs[(tabs.index(nb.select()) + d) % len(tabs)])
+        return "break"
+
+    def _donde(self, w):
+        """(grupo, notebook, id de pestaña) que contiene al widget w, o None."""
+        while w is not None:
+            for k, nb in self.grupos.items():
+                if str(w) in nb.tabs():
+                    return k, nb, str(w)
+            w = w.master
+        return None
+
+    def ir_a(self, w):
+        """Mostrar la pestaña que contiene al widget w (y su modo, si está dentro de Cortos)."""
+        d = self._donde(w)
+        if d:
+            self.mostrar_grupo(d[0])
+            d[1].select(d[2])
+        x, hijo = w, w
+        while x is not None and not isinstance(x, Conmutador):
+            hijo, x = x, x.master
+        if isinstance(x, Conmutador):
+            x.mostrar(hijo)
+
+    def _marcar_trabajo(self, boton, si):
+        """Punto ● en la pestaña y en el grupo donde hay algo en marcha."""
+        if si:
+            d = self._donde(boton)
+            self._marcado = d
+        else:
+            d, self._marcado = getattr(self, "_marcado", None), None
+        if not d:
+            return
+        k, nb, tab = d
+        texto = nb.tab(tab, "text").lstrip("● ")
+        nb.tab(tab, text=("● " + texto) if si else texto)
+        b, txt = self.btn_grupo[k]
+        b.config(text=("● " + txt) if si else txt)
+
+    # ------------------------------------------------------------ ajustes --
+    @staticmethod
+    def _estilos_grupos(st, oscuro, c=None):
+        """Botones de la barra lateral (grupos) y de los modos dentro de una pestaña."""
+        st.configure("Grupo.Toolbutton", font=("Segoe UI", 10), padding=(10, 8), anchor="w", justify="left")
+        st.configure("Modo.Toolbutton", font=("Segoe UI", 10), padding=(10, 4))
+        st.configure("RecOn.TButton", foreground="#c62828", font=("Segoe UI", 9, "bold"))
+        for nombre in ("Grupo.Toolbutton", "Modo.Toolbutton"):
+            if oscuro:
+                st.configure(nombre, background=c["panel"], foreground=c["texto"])
+                st.map(nombre, background=[("selected", c["sel"]), ("active", "#3a3d43")],
+                       foreground=[("selected", "white")])
+            else:
+                st.map(nombre, background=[("selected", "#cfe0fb"), ("active", "#e5eefc")],
+                       foreground=[("selected", "#0b3d91")])
+
+    def _armar_ajustes(self, nb):
+        esc = self.root.winfo_fpixels("1i") / 96.0
+        aj = ttk.Frame(nb, padding=10)
+        nb.add(aj, text="Ajustes")
+        eq = ttk.LabelFrame(aj, text="Equipo", padding=8)
+        eq.grid(row=0, column=0, sticky="nw")
+        self.lbl_equipo = ttk.Label(eq, text="Sin conexión", justify="left", font=("Consolas", 10))
+        self.lbl_equipo.grid(row=0, column=0, columnspan=3, sticky="w")
+        self.sp_pant = {}
+        for n, (k, t) in enumerate((("brillo", "Brillo de la pantalla"), ("volumen", "Volumen del pitido")), 1):
+            ttk.Label(eq, text=t).grid(row=n, column=0, sticky="w", pady=(6, 0))
+            sp = ttk.Spinbox(eq, from_=0, to=10, width=4)
+            sp.grid(row=n, column=1, sticky="w", padx=6, pady=(6, 0))
+            b = ttk.Button(eq, text="Aplicar", command=lambda k=k, sp=sp: self._aplicar_pantalla(k, sp))
+            b.grid(row=n, column=2, pady=(6, 0))
+            self.sp_pant[k] = sp
+            self.controles += [sp, b]
+        aj.bind("<Map>", lambda e: self._refrescar_ajustes())
+
+        rg = ttk.LabelFrame(aj, text="Registro CSV (botón ● REC de arriba)", padding=8)
+        rg.grid(row=0, column=1, sticky="nw", padx=(12, 0))
+        ttk.Label(rg, text="Guardar una lectura cada:").grid(row=0, column=0, sticky="w")
         self.cb_int = ttk.Combobox(rg, width=7, state="readonly",
                                    values=["0.2 s", "0.5 s", "1 s", "2 s", "5 s", "10 s", "60 s"])
         self.cb_int.current(2)
         self.cb_int.grid(row=0, column=1, sticky="w", padx=4)
-        self.btn_csv = ttk.Button(rg, text="Iniciar registro", command=self.alternar_csv)
-        self.btn_csv.grid(row=0, column=2, padx=10)
         ttk.Button(rg, text="Abrir carpeta de registros",
                    command=lambda: (os.makedirs(CARPETA_REG, exist_ok=True), os.startfile(CARPETA_REG))) \
-            .grid(row=0, column=3)
-        self.lbl_csv = ttk.Label(rg, text="Sin registrar", foreground=GRIS)
-        self.lbl_csv.grid(row=1, column=0, columnspan=4, sticky="w", pady=8)
+            .grid(row=1, column=0, columnspan=2, sticky="w", pady=(6, 0))
+        self.lbl_csv = ttk.Label(rg, text="Sin registrar", foreground=GRIS, wraplength=int(380 * esc))
+        self.lbl_csv.grid(row=2, column=0, columnspan=2, sticky="w", pady=(6, 0))
+
+        at = ttk.LabelFrame(aj, text="Atajos de teclado", padding=8)
+        at.grid(row=1, column=0, columnspan=2, sticky="nw", pady=(12, 0))
+        ttk.Label(at, justify="left", font=("Consolas", 10), text=(
+            "F5            encender / apagar la salida\n"
+            "Enter         aplica el campo de voltaje o corriente\n"
+            "Ctrl+1 … 6    usar la memoria M1 … M6\n"
+            "Alt+1 … 5     ir a Placas, Piezas, Baterías, Monitoreo, Fuente\n"
+            "Ctrl+Tab      siguiente pestaña del grupo (Ctrl+Mayús+Tab: anterior)")).pack(anchor="w")
+
+    def _refrescar_ajustes(self):
+        if not self.dev:
+            self.lbl_equipo.config(text="Sin conexión")
+            return
+        e = self.dev.lectura()
+        self.lbl_equipo.config(text=(
+            f"Puerto        {self.dev.puerto}\n"
+            f"Modelo        {e.get('modelo', '?')}\n"
+            f"Hardware      {e.get('hw', '?')}   Firmware {e.get('fw', '?')}\n"
+            f"Entrada       {e.get('vin') or 0:.2f} V\n"
+            f"Máximo hoy    {e.get('v_max') or 0:.1f} V / {e.get('i_max') or 0:.2f} A"))
+        for k, sp in self.sp_pant.items():
+            if e.get(k) is not None:
+                sp.set(e[k])
+
+    def _aplicar_pantalla(self, k, sp):
+        if not self.dev:
+            return
+        try:
+            n = int(float(sp.get()))
+        except ValueError:
+            return
+        fn = self.dev.fijar_brillo if k == "brillo" else self.dev.fijar_volumen
+        if self._seguro(fn, n):
+            self._seguro(self.dev.pedir_todo)
 
     # ----------------------------------------------------------- memorias --
     def _armar_memorias(self, nb):
@@ -1071,9 +1293,10 @@ class Panel:
             Grafica.FONDO, Grafica.BORDE, Grafica.REJILLA, Grafica.TEXTO = "white", "#bbbbbb", "#eeeeee", "black"
             self.root.config(bg=self._bg_base)
         st.configure("Grande.TButton", font=("Segoe UI", 13, "bold"), padding=8)
+        self._estilos_grupos(st, o, c)
         self.fg_texto = c["texto"] if o else "#333333"
         self._recolorear(self.root, o)
-        for g in (self.graf, self.graf_bar, self.graf_r):
+        for g in (self.graf, self.graf_bar, self.graf_r, self.graf_carga):
             g.dibujar()
         Medidor.TEMA = Medidor.OSCURO if o else Medidor.CLARO
         self.medidor._cara()
@@ -1147,14 +1370,14 @@ class Panel:
         self.v_tono = tk.BooleanVar(value=False)
         ttk.Checkbutton(cfg, text="Tono: más agudo = menos resistencia", variable=self.v_tono,
                         command=self._alternar_tono).grid(row=9, column=0, columnspan=2, sticky="w", pady=(6, 0))
-        self.lbl_cero = ttk.Label(cfg, foreground=GRIS, text="")
-        self.lbl_cero.grid(row=10, column=0, columnspan=2, sticky="w", pady=(4, 0))
-        self.lbl_ayuda_corto = ttk.Label(cfg, foreground=GRIS, justify="left", wraplength=int(270 * esc))
-        self.lbl_ayuda_corto.grid(row=11, column=0, columnspan=2, sticky="w", pady=(6, 0))
+        med = ttk.Frame(f)
+        self.lbl_ayuda_corto = ttk.Label(med, foreground=GRIS, justify="left", wraplength=int(330 * esc))
+        self.lbl_ayuda_corto.pack(side="bottom", anchor="w", pady=(6, 0))
+        self.lbl_cero = ttk.Label(med, foreground=GRIS, text="")
+        self.lbl_cero.pack(side="bottom", anchor="w", pady=(4, 0))
         self._mostrar_cero()
         self._modo_corto()
 
-        med = ttk.Frame(f)
         med.pack(side="left", fill="y", padx=(12, 0))
         tk.Label(med, text="Resistencia entre las puntas", font=("Segoe UI", 10), fg=GRIS).pack(anchor="w")
         self.lbl_r = tk.Label(med, text="-- Ω", font=("Consolas", 38, "bold"), fg="#6a1b9a", width=10, anchor="w")
@@ -1173,7 +1396,7 @@ class Panel:
         self.e_nota.insert(0, "")
         self.e_nota.bind("<Return>", lambda e: self.anotar())
         ttk.Button(an, text="Anotar", command=self.anotar).pack(side="left", padx=4)
-        self.lst_notas = tk.Listbox(med, height=5, width=46, font=("Consolas", 9))
+        self.lst_notas = tk.Listbox(med, height=4, width=46, font=("Consolas", 9))
         self.lst_notas.pack(anchor="w", fill="x", pady=(4, 0))
 
         self.graf_r = Grafica(f)
@@ -1971,6 +2194,7 @@ class Panel:
         for b in (self.btn_seq, self.btn_bar, self.btn_corto):
             if b is not boton:
                 b.config(state="disabled")
+        self._marcar_trabajo(boton, True)
         self.trabajo = threading.Thread(target=fn, daemon=True)
         self.trabajo.start()
 
@@ -1987,14 +2211,14 @@ class Panel:
                                   "p_salida", "modo", "salida", "proteccion", "temp_c", "v_entrada", "ah", "wh"])
         self.csv_filas, self.csv_ultimo, self.csv_t0 = 0, 0.0, time.monotonic()
         self.csv_ruta = ruta
-        self.btn_csv.config(text="Detener registro")
+        self.btn_csv.config(text="■ REC 0", style="RecOn.TButton")
 
     def parar_csv(self):
         if self.csv_archivo:
             self.csv_archivo.close()
             self.lbl_csv.config(text=f"Guardado: {self.csv_ruta}  ({self.csv_filas} filas)")
         self.csv_archivo = self.csv_writer = None
-        self.btn_csv.config(text="Iniciar registro")
+        self.btn_csv.config(text="● REC", style="TButton")
 
     def _escribir_csv(self, e):
         intervalo = float(self.cb_int.get().split()[0])
@@ -2012,6 +2236,7 @@ class Panel:
         if self.csv_filas % 20 == 0:
             self.csv_archivo.flush()
         self.lbl_csv.config(text=f"Registrando en {self.csv_ruta}  ·  {self.csv_filas} filas")
+        self.btn_csv.config(text=f"■ REC {self.csv_filas}")
 
     # -------------------------------------------------------------- ciclo --
     def tick(self):
@@ -2025,8 +2250,22 @@ class Panel:
                 else:
                     self.lbl_info.config(text="Se perdió la conexión: revisa el cable USB", foreground=ROJO)
             else:
-                self._mostrar(dev.lectura(), dev.antiguedad("vout"))
+                e = dev.lectura()
+                self._mostrar(e, dev.antiguedad("vout"))
+                self._barra_rapida(e)
         self.root.after(150, self.tick)
+
+    def _barra_rapida(self, e):
+        """Botones M1-M6 con su voltaje y la linea de protecciones, bajo Control."""
+        for n, b in enumerate(self.btn_mem, 1):
+            v, i = e.get(f"m{n}_v"), e.get(f"m{n}_i")
+            t = f"M{n}  {v:.2f} V" if v is not None else f"M{n}"
+            if b.cget("text") != t:
+                b.config(text=t)
+        if e.get("ovp") is not None:
+            t = f"OVP {e['ovp']:.1f} V · OCP {e.get('ocp') or 0:.2f} A · OPP {e.get('opp') or 0:.0f} W   ›"
+            if self.lbl_prot_linea.cget("text") != t:
+                self.lbl_prot_linea.config(text=t)
 
     def _procesar_cola(self):
         while True:
@@ -2068,6 +2307,7 @@ class Panel:
                 self.lbl_r_clase.config(text=dato, fg=GRIS)
             elif tipo == "fin_trabajo":
                 boton, texto = self._boton_trabajo
+                self._marcar_trabajo(boton, False)
                 boton.config(text=texto)
                 for w in self.botones_seq:
                     w.config(state="normal")
